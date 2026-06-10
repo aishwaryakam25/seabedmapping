@@ -1,0 +1,7 @@
+# 8-class seabed object detection (synthetic side-scan PoC)
+path: dataset_sidescan
+train: images/train
+val: images/val
+
+nc: 8
+names: [rock, boulder, wreck, pipeline, debris, cable, scour, obstruction]

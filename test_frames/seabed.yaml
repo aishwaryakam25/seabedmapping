@@ -1,0 +1,6 @@
+path: C:\Users\RAMNATH VENKAT\Documents\seabed\test_frames
+train: images/train
+val: images/val
+
+nc: 8
+names: [rock, boulder, wreck, pipeline, debris, cable, scour, obstruction]

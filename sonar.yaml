@@ -1,0 +1,13 @@
+# Ultralytics dataset config for the sonar detection PoC.
+# Ultralytics finds labels by swapping 'images' -> 'labels' in each path.
+path: ./data          # dataset root (relative to where you run train.py)
+train: images/train
+val: images/val
+
+names:
+  0: mine
+  1: wreck
+  2: rock
+
+# When you switch to a real dataset, just change `names` to its classes and
+# point train/val at the converted YOLO-format folders.

@@ -1,0 +1,15 @@
+# Core pipeline
+ultralytics>=8.2.0       # YOLO; pulls in PyTorch automatically
+opencv-python>=4.8
+numpy>=1.24
+gradio>=4.0              # one-file upload app (app.py)
+fastapi>=0.110           # web UI backend (server.py)
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9  # file uploads for FastAPI
+reportlab>=4.0           # PDF reports (report.py)
+matplotlib>=3.7          # pie charts in reports
+
+# Optional — raw acoustic track (raw_to_images.py):
+# pyxtf>=1.4             # side-scan .xtf reader
+# pyEcholab             # Simrad .raw (install from github.com/CI-CMG/pyEcholab)
+# MB-System is a separate system install, not pip

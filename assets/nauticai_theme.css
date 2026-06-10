@@ -1,0 +1,18 @@
+.navitem{position:relative;}
+.navright .ic{width:18px;height:18px;cursor:pointer;}
+.bellbadge{position:absolute;top:-6px;right:-7px;min-width:15px;height:15px;border-radius:8px;background:#e0564f;color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 3px;}
+.dropdown{position:absolute;right:0;top:32px;min-width:212px;background:var(--panel);border:1px solid var(--line);border-radius:11px;box-shadow:0 12px 34px rgba(0,0,0,.45);padding:6px;display:none;z-index:60;}
+.dropdown.open{display:block;}
+.ddhead{font-size:10px;letter-spacing:.1em;color:var(--mut);padding:8px 10px 6px;text-transform:uppercase;}
+.dditem{display:block;padding:8px 10px;border-radius:7px;color:var(--tx);text-decoration:none;font-size:12.5px;cursor:pointer;}
+.dditem:hover{background:#10243480;}
+body.light{--bg:#e9eef2;--panel:#ffffff;--panel2:#f3f7fa;--line:#d3dde4;--line2:#e6edf1;--tx:#16323f;--mut:#5d7480;--mut2:#8499a6;}
+body.light select,body.light .selbox,body.light input[type=text],body.light textarea,body.light .pager button{background:#f3f7fa;color:#16323f;}
+body.light .btn,body.light .dbtn{background:#eef3f6;}
+body.light .card{background:var(--panel);}
+body.light tr:hover td{background:#eef4f7;}
+body.light .navlinks a.on{color:#0b2a38;}
+body.light .ph,body.light .kpi .n{color:#16323f;}
+body.light .toast{background:#fff;color:#16323f;}
+body.light .dditem:hover{background:#eef3f6;}
+body.light .dropdown{box-shadow:0 12px 34px rgba(40,70,90,.18);}

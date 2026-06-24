@@ -814,7 +814,7 @@ def _twin_frame_from_survey(fr, fi):
     }
 
 
-def _twin_screenshot_png(frame_list, base_url=None, viewport=(1440, 900)):
+def _twin_screenshot_png(frame_list, base_url=None, viewport=(1440, 900), frame_idx=None):
     """Capture the live /twin page (markers + labels) via headless Chromium."""
     if not frame_list:
         return None
@@ -824,12 +824,32 @@ def _twin_screenshot_png(frame_list, base_url=None, viewport=(1440, 900)):
     except ImportError:
         return None
 
-    data = {"frames": len(frame_list), "frameList": frame_list, "points": []}
-    for fl in frame_list:
+    # Per-frame PDF capture sends one frame; twin.html indexes frameList[0] when ?frame=1.
+    # Renumber to index 1 so markers are not filtered out (points carried frame=4 etc.).
+    capture_list = frame_list
+    twin_frame_param = 1
+    if len(frame_list) == 1:
+        fl = frame_list[0]
+        pts = []
+        for p in fl.get("points") or []:
+            pt = dict(p)
+            pt["frame"] = 1
+            pts.append(pt)
+        capture_list = [{
+            "index": 1,
+            "name": fl.get("name", "Frame 1"),
+            "points": pts,
+        }]
+        twin_frame_param = 1
+    else:
+        twin_frame_param = int(frame_idx or frame_list[0].get("index", 1) or 1)
+
+    data = {"frames": len(capture_list), "frameList": capture_list, "points": []}
+    for fl in capture_list:
         data["points"].extend(fl.get("points") or [])
 
     payload = base64.urlsafe_b64encode(json.dumps(data, separators=(",", ":")).encode("utf-8")).decode().rstrip("=")
-    url = "%s/twin?frame=1&embed=1&screenshot=1#twin=%s" % (base_url, payload)
+    url = "%s/twin?frame=%d&embed=1&screenshot=1#twin=%s" % (base_url, twin_frame_param, payload)
 
     try:
         with sync_playwright() as p:

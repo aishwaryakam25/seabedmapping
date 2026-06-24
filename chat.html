@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NautiCAI · Data Review Copilot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  :root{--bg:#0a1622;--panel:#0e1d2c;--panel2:#0c1a28;--line:#1b3047;--tx:#cdd9e1;--mut:#6f8593;--accent:#2bb6c4;}
+  html,body{height:100%;} body{background:var(--bg);color:var(--tx);font-family:'Inter',system-ui,sans-serif;font-size:13px;}
+  .app{display:flex;flex-direction:column;height:100vh;}
+  .nav{display:flex;align-items:center;height:58px;background:var(--panel);border-bottom:1px solid var(--line);padding:0 20px;}
+  .title b{font-size:15px;font-weight:600;} .title span{display:block;font-size:11px;color:var(--mut);}
+  .navlinks a{color:var(--mut);text-decoration:none;margin-right:20px;font-size:13px;} .navlinks a.on{color:#eaf3f5;border-bottom:2px solid var(--accent);}
+  .main{flex:1;display:flex;min-height:0;}
+  .sidebar{width:280px;background:var(--panel2);border-right:1px solid var(--line);padding:18px;overflow:auto;}
+  .sess{background:#0c1a28;border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:16px;font-size:12px;}
+  .chip{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid var(--line);color:var(--mut);font-size:11px;margin:0 6px 6px 0;cursor:pointer;}
+  .chat{flex:1;display:flex;flex-direction:column;}
+  .msgs{flex:1;overflow:auto;padding:24px;}
+  .msg{margin-bottom:18px;line-height:1.55;max-width:820px;}
+  .msg.user{margin-left:auto;background:#102434;border:1px solid var(--line);border-radius:12px;padding:12px 16px;}
+  .msg.assistant .body{white-space:pre-wrap;}
+  .tools{font-size:11px;color:var(--mut);margin-top:6px;} .tools span{color:var(--accent);}
+  .proposals{margin-top:12px;border-top:1px solid var(--line);padding-top:10px;}
+  .proprow{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #16283a;font-size:12px;}
+  .appr{padding:5px 12px;border-radius:6px;border:1px solid var(--accent);background:#1a4a5240;color:#aee9f0;cursor:pointer;font-size:11px;}
+  .composer{border-top:1px solid var(--line);padding:16px;display:flex;gap:10px;background:var(--panel2);}
+  .composer textarea{flex:1;min-height:44px;background:#0c1a28;border:1px solid var(--line);border-radius:10px;color:var(--tx);padding:12px;font-family:inherit;}
+  .btn{padding:10px 18px;border-radius:9px;border:1px solid var(--accent);background:#1a4a5280;color:#aee9f0;cursor:pointer;}
+  .warn{background:#3a2810;border:1px solid #6b4f1a;color:#f0d080;border-radius:8px;padding:10px;font-size:12px;margin-bottom:14px;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="nav">
+    <div class="title"><b>Seabed Mapping AI</b><span>Data Review Copilot</span></div>
+    <div class="navlinks">
+      <a href="/review">Data Review</a><a href="/copilot" class="on">Copilot</a><a href="/dashboard">Dashboard</a>
+    </div>
+  </div>
+  <div class="main">
+    <aside class="sidebar">
+      <div class="sess" id="sessPanel"><div id="sessStatus">Reading session…</div><div id="sessCounts">—</div></div>
+      <div id="sessWarn" class="warn" style="display:none">No frames loaded. Open <a href="/review" style="color:#f0d080">Data Review</a> first.</div>
+      <div id="chips">
+        <span class="chip" data-q="Give me a survey summary.">Survey summary</span>
+        <span class="chip" data-q="What are the highest-risk contacts still needing review?">High-risk</span>
+        <span class="chip" data-q="Propose lifecycle transitions for open contacts.">Propose transitions</span>
+      </div>
+    </aside>
+    <section class="chat">
+      <div class="msgs" id="msgs"><div id="emptyState" style="color:var(--mut);text-align:center;padding:60px 20px">Ask about the survey loaded in Data Review.</div></div>
+      <div class="composer">
+        <textarea id="input" rows="2" placeholder="Ask about detections, risk, or follow-up…"></textarea>
+        <button class="btn" id="sendBtn" type="button">Send</button>
+      </div>
+    </section>
+  </div>
+</div>
+<script>
+(function () {
+  var SK = 'nauticai_session', FK = 'nauticai_review_frames', UK = 'nauticai_survey_info', LK = 'seabed_lifecycle';
+  var msgsEl = document.getElementById('msgs'), emptyEl = document.getElementById('emptyState');
+  var inputEl = document.getElementById('input'), sendBtn = document.getElementById('sendBtn'), history = [];
+
+  function readJSON(k, fb) { try { var r = localStorage.getItem(k); return r ? JSON.parse(r) : fb; } catch (e) { return fb; } }
+  function loadLifecycle() { return readJSON(LK, { items: {} }); }
+  function advanceLifecycle(cid, state) {
+    var lc = loadLifecycle();
+    lc.items[cid] = Object.assign({}, lc.items[cid] || { id: cid }, { state: state, updated: new Date().toISOString() });
+    localStorage.setItem(LK, JSON.stringify(lc));
+  }
+  function loadPayload() {
+    return { session: readJSON(SK, null), frames: readJSON(FK, []), survey_info: readJSON(UK, {}), lifecycle: loadLifecycle() };
+  }
+  function refreshPanel() {
+    var p = loadPayload(), n = 0;
+    (p.frames || []).forEach(function (f) { n += (f.dets || []).length; });
+    if (!n && p.session && p.session.detections) n = p.session.detections.length;
+    document.getElementById('sessCounts').textContent = (p.frames.length || 0) + ' frames · ' + n + ' detections';
+    document.getElementById('sessStatus').textContent = n ? 'Connected to browser session' : 'No survey data';
+    document.getElementById('sessWarn').style.display = n ? 'none' : '';
+    return p;
+  }
+  function applyProposal(prop) {
+    advanceLifecycle(prop.contact_id, prop.proposed_state);
+    var frames = readJSON(FK, []), touched = false;
+    frames.forEach(function (fr) {
+      (fr.dets || []).forEach(function (d) {
+        if ((d.contact_id || d.id) === prop.contact_id) {
+          touched = true; d.lifecycle = prop.proposed_state;
+          if (prop.proposed_state === 'rov_confirmed') d.status = 'Verified';
+          else d.status = 'Review';
+        }
+      });
+    });
+    if (touched) localStorage.setItem(FK, JSON.stringify(frames));
+    return true;
+  }
+  function renderProposals(el, proposals) {
+    if (!proposals || !proposals.length) return;
+    var w = document.createElement('div'); w.className = 'proposals';
+    w.innerHTML = '<div style="font-size:11px;color:var(--mut);margin-bottom:8px">Lifecycle proposals — approve to apply</div>';
+    proposals.forEach(function (p) {
+      var row = document.createElement('div'); row.className = 'proprow';
+      var meta = document.createElement('div');
+      meta.innerHTML = '<b>' + p.contact_id + '</b> ' + (p.cls || '') + ' · ' + (p.current_lifecycle || '') + ' → <b>' + p.proposed_state + '</b><br><span style="color:var(--mut)">' + (p.reason || '') + '</span>';
+      var btn = document.createElement('button'); btn.className = 'appr'; btn.textContent = 'Approve';
+      btn.onclick = function () { applyProposal(p); btn.textContent = 'Applied'; btn.disabled = true; };
+      row.appendChild(meta); row.appendChild(btn); w.appendChild(row);
+    });
+    el.appendChild(w);
+  }
+  function appendMsg(role, text, tools, proposals) {
+    if (emptyEl) emptyEl.style.display = 'none';
+    var div = document.createElement('div'); div.className = 'msg ' + role;
+    if (role === 'user') div.textContent = text;
+    else {
+      var body = document.createElement('div'); body.className = 'body'; body.textContent = text; div.appendChild(body);
+      if (tools && tools.length) { var t = document.createElement('div'); t.className = 'tools'; t.innerHTML = 'used: <span>' + tools.join(', ') + '</span>'; div.appendChild(t); }
+      renderProposals(div, proposals);
+    }
+    msgsEl.appendChild(div); msgsEl.scrollTop = msgsEl.scrollHeight;
+  }
+  async function sendMessage(text) {
+    text = (text || '').trim(); if (!text) return;
+    var payload = refreshPanel();
+    appendMsg('user', text); history.push({ role: 'user', content: text });
+    inputEl.value = ''; sendBtn.disabled = true;
+    try {
+      var res = await fetch('/api/agent/chat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, history: history.slice(0, -1), session: payload.session,
+          frames: payload.frames, survey_info: payload.survey_info, lifecycle: payload.lifecycle })
+      });
+      var data = await res.json().catch(function () { return {}; });
+      if (!res.ok) { appendMsg('assistant', 'Error: ' + (data.detail || res.status), []); return; }
+      appendMsg('assistant', data.reply || '', data.tools_used || [], data.proposals || []);
+      history.push({ role: 'assistant', content: data.reply || '' });
+    } catch (e) { appendMsg('assistant', 'Network error: ' + e.message, []); }
+    finally { sendBtn.disabled = false; inputEl.focus(); }
+  }
+  sendBtn.onclick = function () { sendMessage(inputEl.value); };
+  inputEl.onkeydown = function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(inputEl.value); } };
+  document.getElementById('chips').onclick = function (e) { var c = e.target.closest('.chip'); if (c) sendMessage(c.getAttribute('data-q')); };
+  refreshPanel(); inputEl.focus();
+})();
+</script>
+</body>
+</html>

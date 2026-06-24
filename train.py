@@ -5,8 +5,6 @@ Train YOLO on the sonar dataset.
 
     pip install ultralytics          # one-time
     python train.py                  # uses sonar.yaml, GPU auto-detected
-    python make_sidescan.py --out dataset_sidescan --n 1600 --val 0.15
-    python train.py --data dataset_sidescan/seabed.yaml --epochs 60
     python train.py --device cpu --epochs 5    # quick smoke test on CPU
 
 The first run downloads the pretrained weights (yolov8n.pt) once -- needs
@@ -17,7 +15,6 @@ On the synthetic dataset this just proves the loop runs. Use a real dataset for
 results -- see README.md.
 """
 import argparse
-import sys
 
 from ultralytics import YOLO
 
@@ -32,8 +29,6 @@ def main():
     ap.add_argument("--batch", type=int, default=16)
     ap.add_argument("--device", default=None,
                     help="'0' for first GPU, 'cpu', or leave blank to auto-detect")
-    ap.add_argument("--name", default="sonar_yolo",
-                    help="run folder under runs/detect/ (weights -> runs/detect/<name>/weights/best.pt)")
     args = ap.parse_args()
 
     model = YOLO(args.model)
@@ -43,8 +38,7 @@ def main():
         imgsz=args.imgsz,
         batch=args.batch,
         device=args.device,
-        workers=0 if sys.platform == "win32" else 8,
-        name=args.name,
+        name="sonar_yolo",
     )
     # quick validation summary on the val split
     metrics = model.val()

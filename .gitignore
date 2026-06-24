@@ -14,26 +14,19 @@ __pycache__/
 *.pem
 
 # YOLO / training outputs (large — keep locally or use Git LFS)
+runs/
 *.pt
 *.onnx
 *.engine
 wandb/
-runs/detect/**/weights/*.pt
-runs/detect/**/results.csv
-runs/detect/**/args.yaml
-runs/detect/**/*.jpg
-runs/detect/**/*.png
-runs/detect/**/labels/
 
 # Generated / demo data
-data/
 test_frames/images/
 test_frames/**/*.png
 test_frames/**/*.jpg
 test_frames/**/*.bmp
 report.pdf
 preview_labels.jpg
-*.cache
 *.zip
 *.tar
 *.tar.gz
@@ -53,3 +46,21 @@ desktop.ini
 .idea/
 *.swp
 *.swo
+
+# Node (UI demo tooling)
+node_modules/
+
+# Large local datasets (keep on disk — not in git)
+data/
+dataset_sidescan/
+
+# Recovery / scratch scripts and generated test artifacts
+_restore_server.py
+patch_nav.py
+report_clean.py
+_test_*.py
+_test_*.js
+_*.pdf
+_*.png
+NautiCAI_test_4frame_report.pdf
+benchmark_results.csv

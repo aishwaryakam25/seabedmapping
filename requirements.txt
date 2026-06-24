@@ -8,8 +8,10 @@ uvicorn[standard]>=0.29
 python-multipart>=0.0.9  # file uploads for FastAPI
 reportlab>=4.0           # PDF reports (report.py)
 matplotlib>=3.7          # pie charts in reports
+playwright>=1.40         # optional: embed live /twin screenshots in PDF (playwright install chromium)
 
 # Optional — raw acoustic track (raw_to_images.py):
 # pyxtf>=1.4             # side-scan .xtf reader
 # pyEcholab             # Simrad .raw (install from github.com/CI-CMG/pyEcholab)
 # MB-System is a separate system install, not pip
+anthropic>=0.40          # Data Review Copilot agent (/copilot)

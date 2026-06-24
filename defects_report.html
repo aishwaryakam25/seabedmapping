@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NautiCAI · Seabed Defects Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  :root{--bg:#0a1622;--panel:#0e1d2c;--line:#1b3047;--tx:#cdd9e1;--mut:#6f8593;--accent:#2bb6c4;--navy:#0b2a38;--cyan:#16b4c9;}
+  body{background:var(--bg);color:var(--tx);font-family:'Inter',system-ui,sans-serif;font-size:13px;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  .nav{display:flex;align-items:center;height:58px;background:var(--panel);border-bottom:1px solid var(--line);padding:0 20px;position:sticky;top:0;z-index:20;}
+  .logo{display:flex;align-items:center;padding-right:22px;border-right:1px solid var(--line);margin-right:22px;text-decoration:none;}
+  .logo img{height:32px;}
+  .title{margin-right:34px;} .title b{font-size:15px;font-weight:600;} .title span{display:block;font-size:11px;color:var(--mut);}
+  .navlinks{display:flex;flex-wrap:wrap;}
+  .navlinks a{color:var(--mut);text-decoration:none;font-size:13px;font-weight:500;padding:6px 0;margin-right:20px;border-bottom:2px solid transparent;}
+  .navlinks a.on{color:#eaf3f5;border-bottom-color:var(--accent);}
+  .navright{margin-left:auto;display:flex;gap:10px;align-items:center;}
+  .btn{display:inline-block;padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:#10243480;color:var(--tx);cursor:pointer;font-family:inherit;font-size:12px;text-decoration:none;}
+  .btn.acc{border-color:var(--accent);color:#aee9f0;}
+  .toolbar{padding:16px 24px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--line);background:#0c1a28;}
+  .toolbar .note{font-size:12px;color:var(--mut);}
+  .report-wrap{padding:24px;background:#3d4f5c;min-height:calc(100vh - 120px);}
+  .sheet{background:#fff;color:#1a2a33;width:210mm;min-height:297mm;margin:0 auto 24px;box-shadow:0 8px 32px rgba(0,0,0,.35);position:relative;overflow:hidden;}
+  .sheet-pad{padding:0 14mm 16mm;}
+  .rpt-head{background:var(--navy);color:#fff;padding:10mm 14mm 8mm;position:relative;}
+  .rpt-head::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;background:var(--cyan);}
+  .rpt-head-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;}
+  .rpt-head img{height:36px;}
+  .rpt-title{text-align:right;}
+  .rpt-title h1{font-size:15px;letter-spacing:.14em;font-weight:700;margin-bottom:4px;}
+  .rpt-title p{font-size:9px;opacity:.85;letter-spacing:.06em;}
+  .meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;margin-top:10mm;font-size:9.5px;}
+  .meta-grid .k{color:#5d7480;font-weight:600;text-transform:uppercase;letter-spacing:.05em;}
+  .meta-grid .v{color:#0b2a38;font-weight:500;}
+  .sec-title{font-size:11px;font-weight:700;color:var(--navy);letter-spacing:.1em;text-transform:uppercase;margin:10mm 0 4mm;padding-bottom:3px;border-bottom:2px solid var(--cyan);}
+  .legend{display:flex;flex-wrap:wrap;gap:4px 8px;margin-bottom:5mm;}
+  .leg-item{display:flex;align-items:center;gap:4px;font-size:7.5px;color:#3d4f5c;}
+  .leg-swatch{width:14px;height:10px;border-radius:1px;border:1px solid #ccc;}
+  .sum-table{width:100%;border-collapse:collapse;font-size:8.5px;line-height:1.45;}
+  .sum-table thead th{background:var(--navy);color:#fff;font-weight:600;padding:6px 5px;text-align:left;vertical-align:middle;border:1px solid #0a2230;}
+  .sum-table thead th.c{text-align:center;}
+  .sum-table tbody td{border:1px solid #c5d4da;padding:5px 6px;vertical-align:top;}
+  .sum-table tbody tr:nth-child(even) td{background:#f3f8f9;}
+  .sum-table .loc{font-weight:700;color:var(--navy);white-space:nowrap;width:72px;}
+  .sum-table .exec{min-width:180px;}
+  .sum-table .pct,.sum-table .sev{text-align:center;width:42px;font-weight:600;}
+  .sev-a{color:#15803d;} .sev-b{color:#b5791f;} .sev-c{color:#b3261e;} .sev-d{color:#5d7480;}
+  .mark{text-align:center;font-weight:700;color:var(--navy);}
+  .foot-note{font-size:7.5px;color:#5d7480;line-height:1.5;margin-top:5mm;}
+  .sev-key{font-size:8px;color:#3d4f5c;margin-top:3mm;}
+  .sev-key b{margin-right:8px;}
+  .page-foot{position:absolute;bottom:8mm;left:14mm;right:14mm;display:flex;justify-content:space-between;font-size:7.5px;color:#5d7480;border-top:1px solid #dbe5e8;padding-top:3mm;}
+  .photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:5mm;margin-top:4mm;}
+  .photo-card{border:1px solid #c5d4da;border-radius:2px;overflow:hidden;}
+  .photo-card .im{height:42mm;background:#e8eef0;display:flex;align-items:center;justify-content:center;color:#5d7480;font-size:9px;}
+  .photo-card .im img{width:100%;height:100%;object-fit:cover;}
+  .photo-card .cap{font-size:7.5px;padding:3px 5px;background:#f3f8f9;color:#0b2a38;font-weight:500;}
+  .page-num{font-weight:600;color:var(--navy);}
+  @media print{
+    body{background:#fff;}
+    .nav,.toolbar{display:none!important;}
+    .report-wrap{padding:0;background:#fff;}
+    .sheet{box-shadow:none;margin:0;width:100%;page-break-after:always;}
+    .sheet:last-child{page-break-after:auto;}
+  }
+</style>
+<link rel="stylesheet" href="/assets/nauticai_theme.css">
+</head>
+<body>
+<div class="nav">
+  <a class="logo" href="https://www.nauticai-ai.com" target="_blank" rel="noopener"><img alt="NautiCAI" src="/assets/nauticai-logo-nav.png"></a>
+  <div class="title"><b>Seabed Mapping AI</b><span>Defects executive report</span></div>
+  <div class="navlinks">
+    <a href="/dashboard">Dashboard</a><a href="/review">Data Review</a>
+    <a href="/reports">Reports</a><a href="/defects-report" class="on">Defects Report</a>
+    <a href="/settings">Settings</a>
+  </div>
+  <div class="navright">
+    <span class="ic" id="themeToggle" title="Toggle theme">&#9789;</span>
+  </div>
+</div>
+<div class="toolbar">
+  <button class="btn acc" id="btnPrint" type="button">Print / Save PDF</button>
+  <button class="btn" id="btnPdf" type="button">Download PDF</button>
+  <a class="btn" href="/review">Refresh from Data Review</a>
+  <span class="note" id="toolbarNote">Built from your active survey session</span>
+</div>
+<div class="report-wrap">
+  <div class="sheet" id="page1">
+    <div class="rpt-head">
+      <div class="rpt-head-top">
+        <img src="/assets/nauticai-logo-nav.png" alt="NautiCAI">
+        <div class="rpt-title">
+          <h1>SEABED DEFECTS SERVICE REPORT</h1>
+          <p>NautiCAI · AI-assisted side-scan survey</p>
+        </div>
+      </div>
+      <div class="meta-grid" id="metaGrid"></div>
+    </div>
+    <div class="sheet-pad">
+      <div class="sec-title">Seabed contact conditions — executive summary</div>
+      <div class="legend" id="legend"></div>
+      <table class="sum-table">
+        <thead>
+          <tr>
+            <th>Contact class</th>
+            <th>Seabed conditions executive</th>
+            <th class="c">% contacts</th>
+            <th class="c">Severity</th>
+            <th class="c">Verified</th>
+            <th class="c">ROV req.</th>
+            <th>Remarks</th>
+          </tr>
+        </thead>
+        <tbody id="summaryBody"></tbody>
+      </table>
+      <p class="sev-key"><b>Severity:</b> (A) Light &nbsp; (B) Moderate &nbsp; (C) Heavy &nbsp; (D) Clean / none detected</p>
+      <p class="foot-note" id="footNote"></p>
+      <div class="page-foot"><span>NautiCAI Seabed Mapping AI · www.nauticai-ai.com</span><span class="page-num">Page 1</span></div>
+    </div>
+  </div>
+  <div class="sheet" id="page2">
+    <div class="rpt-head" style="padding:8mm 14mm 6mm">
+      <div class="rpt-head-top">
+        <img src="/assets/nauticai-logo-nav.png" alt="NautiCAI">
+        <div class="rpt-title"><h1>PHOTOGRAPHIC REPORT</h1><p>Annotated side-scan contacts</p></div>
+      </div>
+    </div>
+    <div class="sheet-pad">
+      <div class="sec-title">Contact evidence — survey frames</div>
+      <div class="photo-grid" id="photoGrid"></div>
+      <p class="foot-note">Images are representative frames from the active Data Review session. Full-resolution annex available via multi-frame survey PDF from Reports.</p>
+      <div class="page-foot"><span id="photoFoot"></span><span class="page-num">Page 2</span></div>
+    </div>
+  </div>
+</div>
+<script src="/assets/seabed_survey_ops.js"></script>
+<script src="/assets/seabed_defect_report.js"></script>
+<script>
+(function () {
+  function esc(s) {
+    return ('' + s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function xmark(on) {
+    return on ? '<span class="mark">X</span>' : '';
+  }
+  function render() {
+    var payload = SeabedDefectReport.buildPayload();
+    var m = payload.meta;
+    document.getElementById('toolbarNote').textContent =
+      (m.demo ? 'Demo data — ' : '') + m.project + ' · ' + m.survey_line + ' · ' + payload.total + ' contacts';
+    document.getElementById('metaGrid').innerHTML =
+      '<div><span class="k">Project</span><div class="v">' + esc(m.project) + '</div></div>' +
+      '<div><span class="k">Job no.</span><div class="v">' + esc(m.survey_line) + '</div></div>' +
+      '<div><span class="k">Vessel</span><div class="v">' + esc(m.vessel) + '</div></div>' +
+      '<div><span class="k">Location</span><div class="v">' + esc(m.location) + '</div></div>' +
+      '<div><span class="k">Sensor</span><div class="v">' + esc(m.sensor) + '</div></div>' +
+      '<div><span class="k">Survey date</span><div class="v">' + esc(m.date) + '</div></div>';
+    document.getElementById('legend').innerHTML = payload.legend.map(function (l) {
+      return '<div class="leg-item"><span class="leg-swatch" style="background:' + l.color + '"></span>' + esc(l.label) + '</div>';
+    }).join('');
+    document.getElementById('summaryBody').innerHTML = payload.rows.map(function (r) {
+      return '<tr>' +
+        '<td class="loc">' + esc(r.label) + '</td>' +
+        '<td class="exec">' + esc(r.executive) + '</td>' +
+        '<td class="pct">' + (r.count ? r.pct + '%' : '—') + '</td>' +
+        '<td class="sev sev-' + r.severity.toLowerCase() + '">' + r.severity + '</td>' +
+        '<td class="mark">' + xmark(r.verified) + '</td>' +
+        '<td class="mark">' + xmark(r.rovRequired) + '</td>' +
+        '<td class="mono">' + esc(r.remarks) + '</td></tr>';
+    }).join('');
+    document.getElementById('footNote').textContent =
+      'Desk-review summary from ' + m.frames + ' side-scan frame(s) and ' + payload.total +
+      ' AI-detected contact(s). Percentages are share of total contacts by class. ' +
+      'ROV verification per project procedure where ROV req. is marked.';
+    var photos = payload.photos;
+    document.getElementById('photoGrid').innerHTML = photos.length ? photos.map(function (p) {
+      var im = p.thumb
+        ? '<img src="' + p.thumb + '" alt="">'
+        : 'Frame ' + p.frame;
+      return '<div class="photo-card"><div class="im">' + im + '</div><div class="cap">' + esc(p.caption) + '</div></div>';
+    }).join('') : '<p class="foot-note">No frame imagery in session. Upload frames in Data Review to populate the photographic annex.</p>';
+    document.getElementById('photoFoot').textContent = m.project + ' · ' + m.survey_line;
+  }
+  document.getElementById('btnPrint').addEventListener('click', function () { window.print(); });
+  document.getElementById('btnPdf').addEventListener('click', function () {
+    var payload = SeabedDefectReport.buildPayload();
+    fetch('/report/defects-executive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function (r) {
+      if (!r.ok) return r.json().then(function (e) { throw new Error(e.error || 'PDF failed'); });
+      return r.blob();
+    }).then(function (blob) {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'NautiCAI_Seabed_Defects_Report.pdf';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }).catch(function (e) { alert(e.message || 'Could not generate PDF'); });
+  });
+  render();
+  window.addEventListener('pageshow', render);
+})();
+</script>
+<script src="/assets/nauticai_nav.js"></script>
+</body>
+</html>

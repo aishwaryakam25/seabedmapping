@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NautiCAI · Client Site Briefing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  :root{--bg:#0a1622;--panel:#0e1d2c;--line:#1b3047;--tx:#cdd9e1;--mut:#6f8593;--accent:#2bb6c4;--go:#3fae6a;--warn:#d9b13b;--stop:#e0564f;}
+  body{background:var(--bg);color:var(--tx);font-family:'Inter',system-ui,sans-serif;font-size:13px;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  .nav{display:flex;align-items:center;height:58px;background:var(--panel);border-bottom:1px solid var(--line);padding:0 20px;position:sticky;top:0;z-index:20;}
+  .logo{display:flex;align-items:center;padding-right:22px;border-right:1px solid var(--line);margin-right:22px;text-decoration:none;}
+  .logo img{height:32px;}
+  .title{margin-right:34px;} .title b{font-size:15px;font-weight:600;} .title span{display:block;font-size:11px;color:var(--mut);}
+  .navlinks{display:flex;flex-wrap:wrap;}
+  .navlinks a{color:var(--mut);text-decoration:none;font-size:13px;font-weight:500;padding:6px 0;margin-right:20px;border-bottom:2px solid transparent;}
+  .navlinks a.on{color:#eaf3f5;border-bottom-color:var(--accent);}
+  .navright{margin-left:auto;display:flex;gap:10px;align-items:center;}
+  .toolbar{padding:14px 24px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--line);background:#0c1a28;}
+  .btn{display:inline-block;padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:#10243480;color:var(--tx);cursor:pointer;font-family:inherit;font-size:12px;text-decoration:none;}
+  .btn.acc{border-color:var(--accent);color:#aee9f0;}
+  .btn.go{border-color:var(--go);color:#b8f0c8;}
+  .wrap{max-width:1100px;margin:0 auto;padding:24px;}
+  .hero{background:linear-gradient(135deg,#0b2230 0%,#0e1d2c 55%,#102434 100%);border:1px solid var(--line);border-radius:16px;padding:28px 32px;margin-bottom:20px;display:flex;flex-wrap:wrap;gap:24px;align-items:center;}
+  .verdict{flex:0 0 auto;text-align:center;min-width:200px;}
+  .badge{display:inline-block;padding:14px 28px;border-radius:12px;font-size:22px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;border:3px solid;}
+  .badge.go{background:rgba(63,174,106,.15);color:#7ee0a0;border-color:var(--go);}
+  .badge.warn{background:rgba(217,177,59,.12);color:#f0d080;border-color:var(--warn);}
+  .badge.stop{background:rgba(224,86,79,.12);color:#f0a0a0;border-color:var(--stop);}
+  .verdict p{font-size:12px;color:var(--mut);margin-top:10px;max-width:220px;line-height:1.5;}
+  .hero-main{flex:1;min-width:280px;}
+  .hero-main h1{font-size:26px;font-weight:700;color:#eaf3f5;margin-bottom:6px;}
+  .hero-main .sub{font-size:13px;color:var(--mut);margin-bottom:14px;}
+  .meta-row{display:flex;flex-wrap:wrap;gap:16px 28px;font-size:12px;}
+  .meta-row .k{color:var(--mut);text-transform:uppercase;letter-spacing:.06em;font-size:10px;}
+  .meta-row .v{font-weight:600;color:#eaf3f5;margin-top:2px;}
+  .score-pill{display:inline-flex;align-items:center;gap:8px;background:#0c1a28;border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:12px;margin-top:12px;}
+  .score-pill b{font-size:18px;color:var(--accent);}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px;}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;}
+  .kpi .n{font-size:26px;font-weight:700;color:#eaf3f5;line-height:1;}
+  .kpi .l{font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;margin-top:6px;}
+  .kpi .n.acc{color:var(--accent);}
+  .kpi .n.warn{color:var(--warn);}
+  .kpi .n.stop{color:var(--stop);}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media(max-width:800px){.grid2{grid-template-columns:1fr;}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;}
+  .h2{font-size:11px;letter-spacing:.12em;color:var(--mut);font-weight:600;margin-bottom:12px;text-transform:uppercase;}
+  .actions{list-style:none;}
+  .actions li{padding:10px 0;border-bottom:1px solid #16283a;font-size:13px;line-height:1.45;display:flex;gap:10px;}
+  .actions li:last-child{border-bottom:0;}
+  .actions .n{font-weight:700;color:var(--accent);min-width:22px;}
+  .risk-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #16283a;font-size:12.5px;}
+  .risk-row:last-child{border-bottom:0;}
+  .chip{font-size:10px;padding:2px 8px;border-radius:8px;color:#fff;font-weight:600;}
+  .foot{font-size:11px;color:var(--mut);margin-top:20px;line-height:1.6;}
+  body.present .nav,body.present .toolbar{display:none!important;}
+  body.present .wrap{max-width:1280px;padding:32px;}
+  body.present .hero{padding:36px 40px;}
+  body.present .badge{font-size:28px;padding:18px 36px;}
+  body.present .hero-main h1{font-size:32px;}
+  .toast{position:fixed;bottom:24px;right:24px;background:#102434;border:1px solid var(--accent);color:#aee9f0;padding:10px 16px;border-radius:8px;font-size:12px;opacity:0;transition:.2s;z-index:99;}
+  .toast.show{opacity:1;}
+</style>
+<link rel="stylesheet" href="/assets/nauticai_theme.css">
+</head>
+<body>
+<div class="nav">
+  <a class="logo" href="https://www.nauticai-ai.com" target="_blank" rel="noopener"><img alt="NautiCAI" src="/assets/nauticai-logo-nav.png"></a>
+  <div class="title"><b>Seabed Mapping AI</b><span>Client site briefing</span></div>
+  <div class="navlinks">
+    <a href="/dashboard">Dashboard</a><a href="/review">Data Review</a>
+    <a href="/briefing" class="on">Briefing</a><a href="/defects-report">Defects Report</a>
+    <a href="/reports">Reports</a>
+  </div>
+  <div class="navright"><span class="ic" id="themeToggle" title="Toggle theme">&#9789;</span></div>
+</div>
+<div class="toolbar">
+  <button class="btn acc" id="btnPresent" type="button">Present mode</button>
+  <button class="btn go" id="btnCopy" type="button">Copy briefing text</button>
+  <a class="btn" href="/defects-report" target="_blank">Remediation plan</a>
+  <a class="btn" href="/review">Refresh data</a>
+  <span style="font-size:12px;color:var(--mut)" id="toolbarNote"></span>
+</div>
+<div class="wrap">
+  <div class="hero" id="hero"></div>
+  <div class="kpis" id="kpis"></div>
+  <div class="grid2">
+    <div class="card"><div class="h2">Priority actions</div><ul class="actions" id="actions"></ul></div>
+    <div class="card"><div class="h2">Top risks by class</div><div id="risks"></div></div>
+  </div>
+  <p class="foot" id="footNote">Desk-review briefing generated from the active Data Review session. Not a survey-grade clearance — ROV verification per project procedure where indicated.</p>
+</div>
+<div class="toast" id="toast">Copied to clipboard</div>
+<script src="/assets/seabed_survey_ops.js"></script>
+<script src="/assets/seabed_intelligence.js"></script>
+<script src="/assets/seabed_defect_report.js"></script>
+<script>
+(function () {
+  var RISKCOL = { Critical: '#e0564f', High: '#d2691e', Medium: '#d9b13b', Low: '#3fae6a' };
+  function cap(s) { return ('' + s).replace(/\b\w/g, function (c) { return c.toUpperCase(); }); }
+  function toast(msg) {
+    var t = document.getElementById('toast');
+    t.textContent = msg || 'Copied';
+    t.classList.add('show');
+    setTimeout(function () { t.classList.remove('show'); }, 2200);
+  }
+  function verdictFromReadiness(r) {
+    if (r.tier === 'ready') return { label: 'GO', cls: 'go', note: 'No open high-risk contacts. Proceed to clearance certificate.' };
+    if (r.tier === 'progress') return { label: 'CONDITIONAL', cls: 'warn', note: 'Desk review in progress — resolve open items before installation.' };
+    if (!r.score) return { label: 'PENDING', cls: 'warn', note: 'Upload and analyse frames in Data Review first.' };
+    return { label: 'NO-GO', cls: 'stop', note: 'High-risk contacts require ROV verification before installation.' };
+  }
+  function buildActions(dets, readiness, repair, roi) {
+    var out = [];
+    var counts = {};
+    dets.forEach(function (d) { counts[d.cls] = (counts[d.cls] || 0) + 1; });
+    if (counts.uxo || counts.mine) out.push('Stop work — ' + ((counts.uxo || 0) + (counts.mine || 0)) + ' suspected UXO contact(s). Specialist EOD assessment required.');
+    if (counts.wreck) out.push('Schedule ROV inspection on ' + counts.wreck + ' wreck contact(s) before any installation activity.');
+    if (readiness.high_risk_open) out.push('Verify ' + readiness.high_risk_open + ' open high-risk contact(s) in Data Review or ROV Ops.');
+    if (repair.contacts) out.push('Budget ' + repair.costLabel + ' remediation (' + repair.timeLabel + ') across ' + repair.classes + ' defect class(es).');
+    if (roi && roi.dives_avoided) out.push('AI desk-review avoided an estimated ' + roi.dives_avoided + ' ROV dive(s) — $' + roi.cost_saved_usd.toLocaleString() + ' saved vs full manual survey.');
+    if (!out.length && dets.length) out.push('Continue routine survey coverage. No critical blockers detected in current session.');
+    if (!out.length) out.push('Load side-scan frames in Data Review to generate a site briefing.');
+    return out.slice(0, 6);
+  }
+  function briefingText(meta, v, readiness, repair, roi, actions) {
+    var lines = [
+      'NAUTICAI SITE BRIEFING',
+      'Decision: ' + v.label,
+      'Project: ' + (meta.project || '—') + ' | Line: ' + (meta.survey_line || '—'),
+      'Vessel: ' + (meta.vessel || '—') + ' | Date: ' + (meta.date || new Date().toLocaleDateString()),
+      '',
+      'Readiness: ' + readiness.score + '% — ' + readiness.tier_label,
+      'Contacts: ' + repair.contacts + ' | Est. remediation: ' + repair.costLabel + ' (' + repair.timeLabel + ')',
+      'High-risk open: ' + readiness.high_risk_open + ' | ROV cost saved: $' + (roi ? roi.cost_saved_usd.toLocaleString() : '0'),
+      '',
+      'Priority actions:',
+    ];
+    actions.forEach(function (a, i) { lines.push((i + 1) + '. ' + a); });
+    lines.push('', readiness.recommendation);
+    lines.push('', '— Generated by NautiCAI Seabed Mapping AI (desk-review, not survey-grade clearance)');
+    return lines.join('\n');
+  }
+  function render() {
+    var payload = SeabedDefectReport.buildPayload();
+    var m = payload.meta;
+    var dets = SeabedDefectReport.loadSession();
+    dets = dets && dets.detections ? dets.detections : [];
+    var readiness = SeabedIntelligence.surveyReadiness(dets);
+    var roi = SeabedIntelligence.roiMetrics(dets);
+    var repair = payload.repairTotals || {};
+    var v = verdictFromReadiness(readiness);
+    var actions = buildActions(dets, readiness, repair, roi);
+    var hi = 0;
+    dets.forEach(function (d) {
+      var r = SeabedDefectReport.buildRows ? null : null;
+    });
+    var riskCounts = { Critical: 0, High: 0, Medium: 0, Low: 0 };
+    var byClass = {};
+    dets.forEach(function (d) {
+      var rk = (function (c) {
+        var R = { wreck: 'Critical', uxo: 'Critical', mine: 'Critical', pipeline: 'High', cable: 'High', cable_crossing: 'High', obstruction: 'High' };
+        var k = ('' + c).toLowerCase().replace(/\s+/g, '_');
+        return R[k] || (k === 'rock' ? 'Low' : 'Medium');
+      })(d.cls);
+      riskCounts[rk]++;
+      byClass[d.cls] = (byClass[d.cls] || 0) + 1;
+      if (rk === 'Critical' || rk === 'High') hi++;
+    });
+    document.getElementById('toolbarNote').textContent =
+      (m.demo ? 'Demo — ' : '') + (m.project || 'Survey') + ' · ' + payload.total + ' contacts';
+    document.getElementById('hero').innerHTML =
+      '<div class="verdict"><div class="badge ' + v.cls + '">' + v.label + '</div><p>' + v.note + '</p></div>' +
+      '<div class="hero-main"><h1>Installation site briefing</h1>' +
+      '<p class="sub">One-screen executive decision summary for project managers and clients</p>' +
+      '<div class="meta-row">' +
+      '<div><div class="k">Project</div><div class="v">' + (m.project || '—') + '</div></div>' +
+      '<div><div class="k">Survey line</div><div class="v mono">' + (m.survey_line || '—') + '</div></div>' +
+      '<div><div class="k">Vessel</div><div class="v">' + (m.vessel || '—') + '</div></div>' +
+      '<div><div class="k">Frames</div><div class="v">' + (m.frames || 0) + '</div></div>' +
+      '</div>' +
+      '<div class="score-pill">Clearance readiness <b style="color:' + readiness.color + '">' + readiness.score + '%</b> · ' + readiness.tier_label + '</div></div>';
+    document.getElementById('kpis').innerHTML =
+      '<div class="kpi"><div class="n">' + payload.total + '</div><div class="l">Contacts detected</div></div>' +
+      '<div class="kpi"><div class="n stop">' + hi + '</div><div class="l">Critical / high</div></div>' +
+      '<div class="kpi"><div class="n warn">' + (repair.costLabel || '—') + '</div><div class="l">Est. remediation</div></div>' +
+      '<div class="kpi"><div class="n">' + (repair.timeLabel || '—') + '</div><div class="l">Repair window</div></div>' +
+      '<div class="kpi"><div class="n acc">$' + roi.cost_saved_usd.toLocaleString() + '</div><div class="l">ROV cost saved</div></div>' +
+      '<div class="kpi"><div class="n acc">' + readiness.dives_avoided + '</div><div class="l">Dives avoided</div></div>';
+    document.getElementById('actions').innerHTML = actions.map(function (a, i) {
+      return '<li><span class="n">' + (i + 1) + '.</span><span>' + a + '</span></li>';
+    }).join('');
+    var topClasses = Object.keys(byClass).sort(function (a, b) { return byClass[b] - byClass[a]; }).slice(0, 6);
+    document.getElementById('risks').innerHTML = topClasses.length ? topClasses.map(function (c) {
+      var rk = (function (cls) {
+        var R = { wreck: 'Critical', uxo: 'Critical', mine: 'Critical', pipeline: 'High', cable: 'High', cable_crossing: 'High', obstruction: 'High', rock: 'Low' };
+        return R[('' + cls).toLowerCase().replace(/\s+/g, '_')] || 'Medium';
+      })(c);
+      return '<div class="risk-row"><span>' + cap(c) + ' ×' + byClass[c] + '</span><span class="chip" style="background:' + RISKCOL[rk] + '">' + rk + '</span></div>';
+    }).join('') : '<p style="color:var(--mut);font-size:12px">No contacts in session.</p>';
+    window._briefingText = briefingText(m, v, readiness, repair, roi, actions);
+  }
+  document.getElementById('btnCopy').addEventListener('click', function () {
+    var t = window._briefingText || '';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(function () { toast('Briefing copied — paste into email or Teams'); });
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = t; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); toast('Briefing copied'); } catch (e) { toast('Copy failed'); }
+      document.body.removeChild(ta);
+    }
+  });
+  document.getElementById('btnPresent').addEventListener('click', function () {
+    document.body.classList.toggle('present');
+    this.textContent = document.body.classList.contains('present') ? 'Exit present mode' : 'Present mode';
+  });
+  render();
+  window.addEventListener('pageshow', render);
+})();
+</script>
+<script src="/assets/nauticai_nav.js"></script>
+</body>
+</html>

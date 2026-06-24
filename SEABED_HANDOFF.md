@@ -1,31 +1,56 @@
 # SEABED — Sonar Object Detection — Handoff
 
-> **For Cursor (read this first):** The model is **already trained and downloaded** — do **NOT** train anything. A UATD-trained YOLOv8n model (`best.pt`, 10 classes, ~0.83 mAP50) already exists. Your job is only to **wire up and run the web app** so a user can upload a sonar image and see detection boxes. Verify each file below against the project; create or fix any that differ. Do not change the class color map. Then follow "Steps to run".
+> **For Cursor (read this first):** The model weights live at `runs/detect/sonar_yolo/weights/best.pt` (8 seabed classes). Your job is to **run the web app** — upload sonar images and verify detections. Do not change the class color map unless asked. To retrain on synthetic + UATD data, use `python retrain_sonar.py` (see Training below).
 
 ## What this project is
-A small web app: upload a sonar image → a YOLO model draws boxes around detected
-objects and lists them with confidence. A FastAPI backend (`server.py`) serves a
-single HTML page (`index.html`) and runs the model on uploaded images.
+NautiCAI seabed mapping PoC: upload side-scan sonar frames → YOLO detects seabed objects → review in Data Review, 3D twin, mosaic view, measurement tool, and multi-frame PDF reports. FastAPI (`server.py`) serves all pages and runs inference on `/detect`.
 
 ## Current state
-- The trained model lives at: `runs/detect/sonar_yolo/weights/best.pt`
-- It was trained on the real **UATD** dataset (10 classes: ball, circle cage,
-  cube, cylinder, human body, metal bucket, plane, rov, square cage, tyre).
-- `server.py` auto-loads `best.pt` if present; otherwise it falls back to a
-  generic `yolov8n` (which does NOT know sonar targets).
-- The UI class-color map only names mine/wreck/rock; UATD classes simply render
-  in the default teal — this is expected and fine.
+- Trained model: `runs/detect/sonar_yolo/weights/best.pt`
+- **8 classes:** rock, boulder, wreck, pipeline, debris, cable, scour, obstruction
+- Trained on **synthetic side-scan** frames; can be **fine-tuned** on real UATD via `retrain_sonar.py` (Test_1 + Test_2 mapped to seabed classes, merged with synthetic data in `data/combined/`)
+- `server.py` auto-loads `best.pt`; falls back to `yolov8n` if missing (not sonar-trained)
+
+## Platform features (NautiCAI PoC)
+- **Data Review** (`/review`, `console.html`) — multi-frame upload, detection boxes, session restore
+- **Confidence threshold** — Settings page + Review sidebar; synced via `localStorage` key `set_conf`; used on `/detect` and PDF reports; **Re-detect with threshold** button
+- **Survey Mosaic** — View Mode → *Survey Mosaic* stitches consecutive frames into one strip with detection overlays
+- **Measurement tool** — ↔ button on sonar view: two clicks measure distance in metres using range scale
+- **3D Twin** (`/twin`) — per-frame seabed heatmap with markers and labels
+- **Multi-frame PDF** — `POST /report-multi` from Review; Playwright embeds live twin screenshots
+- **Range scale** — adjustable 50–300 m; drives ruler, detection ranges, and measurements
 
 ## Project layout
 ```
 seabed/
-├── server.py        # FastAPI backend (serves the page + /detect endpoint)
-├── index.html       # the web UI (single page)
+├── server.py        # FastAPI backend (pages + /detect + /report + /report-multi)
+├── console.html     # Data Review (main workflow)
+├── twin.html        # 3D seabed digital twin
+├── report.py        # PDF report builder
+├── brand.py         # NautiCAI branding constants
+├── index.html       # simple single-image upload UI
 ├── detect.py        # optional CLI inference
+├── retrain_sonar.py # prepare synthetic+UATD dataset and fine-tune
+├── convert_uatd.py  # UATD VOC XML → YOLO format
 ├── requirements.txt
-├── sonar.yaml       # only for retraining on synthetic data; not used at inference
-└── runs/detect/sonar_yolo/weights/best.pt   # the trained model
+├── sonar.yaml       # 3-class legacy synthetic config
+└── runs/detect/sonar_yolo/weights/best.pt
 ```
+
+## Retraining (synthetic + UATD)
+Requires `~/Downloads/21331143.zip` (UATD figshare bundle).
+
+```powershell
+python retrain_sonar.py --epochs 20 --batch 8 --device cpu
+```
+
+This will:
+1. Generate 800 synthetic frames (`make_sidescan.py`)
+2. Extract & convert UATD Test_1 (train) + Test_2 (val)
+3. Map UATD classes → 8 seabed classes and merge into `data/combined/`
+4. Fine-tune `best.pt` (backs up previous weights as `best.pt.bak`)
+
+Dataset yaml must use an absolute `path:` — see `data/combined/seabed.yaml`.
 
 ## Steps to run (Windows)
 ```powershell
@@ -35,17 +60,20 @@ python -m venv .venv
 
 # 2. install dependencies (first time only, a few minutes)
 pip install -r requirements.txt
+playwright install chromium   # optional: live 3D twin screenshots in PDF reports
 
 # 3. confirm the model is in place:
 #    runs\detect\sonar_yolo\weights\best.pt   (the UATD best.pt)
 
 # 4. start the app
 python server.py
-#    -> it prints: Open http://127.0.0.1:8000
+#    -> it prints: Open http://127.0.0.1:8000/review
 #    -> the terminal should NOT print the "trained weights not found" warning.
 ```
-Then open **http://127.0.0.1:8000**, upload a sonar image, set confidence to
-about **0.25**, and click **Run detection**. Boxes + a contacts list appear.
+Then open **http://127.0.0.1:8000/review** (Data Review console). Drag one or more
+sonar BMPs onto the viewer — detections run automatically. Use **Settings** or the
+sidebar confidence slider (synced via `set_conf` in localStorage). For multi-frame
+surveys, switch **View Mode → Survey Mosaic** or click **Generate report (PDF)**.
 
 > If the terminal prints `[warn] trained weights not found`, then `best.pt` is
 > not at `runs/detect/sonar_yolo/weights/best.pt` — fix that path and restart.

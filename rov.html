@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NautiCAI · ROV Follow-up</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/nauticai_theme.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0a1622;--panel:#0e1d2c;--panel2:#0c1a28;--line:#1b3047;--line2:#16283a;
+  --tx:#cdd9e1;--mut:#6f8593;--mut2:#54697a;--accent:#2bb6c4;
+  --risk-hi:#e0564f;--risk-med:#d9b13b;--risk-lo:#3fae6a;
+}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--tx);font-family:'Inter',system-ui,sans-serif;font-size:13px;}
+.mono{font-family:'IBM Plex Mono',monospace;}
+.nav{display:flex;align-items:center;height:58px;background:var(--panel);border-bottom:1px solid var(--line);padding:0 20px;position:sticky;top:0;z-index:20;}
+.logo{display:flex;align-items:center;padding-right:22px;border-right:1px solid var(--line);margin-right:22px;text-decoration:none;}
+.logo img{height:32px;width:auto;max-width:150px;}
+.title{margin-right:28px;} .title b{font-size:15px;font-weight:600;} .title span{display:block;font-size:11px;color:var(--mut);}
+.navlinks{display:flex;flex-wrap:wrap;gap:0 20px;}
+.navlinks a{color:var(--mut);text-decoration:none;font-size:12.5px;font-weight:500;padding:6px 0;border-bottom:2px solid transparent;}
+.navlinks a.on{color:#eaf3f5;border-bottom-color:var(--accent);}
+.navright{margin-left:auto;display:flex;align-items:center;color:var(--mut);gap:16px;}
+.shell{display:grid;grid-template-columns:1fr 340px;gap:16px;padding:20px 24px;max-width:1600px;margin:0 auto;min-height:calc(100vh - 58px);}
+.main{min-width:0;}
+.side{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;position:sticky;top:74px;max-height:calc(100vh - 90px);overflow:auto;}
+.ph{font-size:20px;font-weight:600;color:#eaf3f5;}
+.psub{font-size:12.5px;color:var(--mut);margin:4px 0 16px;}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;align-items:center;}
+.btn{padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:#10243480;color:var(--tx);cursor:pointer;font:inherit;font-size:12.5px;}
+.btn:hover{filter:brightness(1.15);}
+.btn.acc{border-color:var(--accent);color:#aee9f0;}
+.btn.warn{border-color:var(--risk-hi);color:#ffb4ae;}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:14px;}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;}
+.kpi .n{font-size:22px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#eaf3f5;}
+.kpi .l{font-size:10px;color:var(--mut);letter-spacing:.08em;text-transform:uppercase;margin-top:4px;}
+.kpi.hi .n{color:var(--risk-hi);}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+.filters select,.side input,.side select,.side textarea{width:100%;background:#0c1a27;border:1px solid var(--line);color:var(--tx);border-radius:7px;padding:8px 10px;font:inherit;font-size:12.5px;}
+.filters select{width:auto;}
+table{width:100%;border-collapse:collapse;font-size:12.5px;}
+th{text-align:left;color:var(--mut);font-size:10.5px;letter-spacing:.06em;padding:8px 10px;border-bottom:1px solid var(--line);}
+td{padding:8px 10px;border-bottom:1px solid var(--line2);vertical-align:middle;}
+tr{cursor:pointer;} tr:hover td{background:#0c1f2e;} tr.sel td{background:#102434;}
+.chip{font-size:10px;padding:2px 8px;border-radius:10px;color:#fff;font-weight:600;display:inline-block;}
+.chip.Critical,.chip.High{background:var(--risk-hi);}
+.chip.Medium{background:var(--risk-med);color:#1a1200;}
+.chip.Low{background:var(--risk-lo);}
+.st{font-size:10px;padding:2px 8px;border-radius:8px;border:1px solid var(--line);color:var(--mut);}
+.st.flagged{border-color:var(--risk-hi);color:#ffb4ae;}
+.st.scheduled{border-color:var(--accent);color:#aee9f0;}
+.st.in_progress{border-color:#d9b13b;color:#ffe6a8;}
+.st.closed{border-color:var(--risk-lo);color:#9fd4a8;}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+.h2{font-size:11px;letter-spacing:.12em;color:var(--mut);font-weight:600;margin-bottom:12px;text-transform:uppercase;}
+.side h3{font-size:14px;margin-bottom:8px;color:#eaf3f5;}
+.side label{display:block;font-size:11px;color:var(--mut);margin:10px 0 4px;}
+.side .row{display:flex;gap:8px;margin-top:12px;}
+.side .row .btn{flex:1;text-align:center;}
+.empty{color:var(--mut);font-size:12.5px;line-height:1.6;padding:20px;}
+.note{font-size:11.5px;color:var(--mut);line-height:1.5;margin-top:10px;}
+body.light{--bg:#e9eef2;--panel:#fff;--panel2:#f3f7fa;--line:#d3dde4;--line2:#e6edf1;--tx:#16323f;--mut:#5d7480;}
+body.light tr:hover td{background:#eef4f7;} body.light tr.sel td{background:#e3f2f6;}
+body.light .ph,body.light .kpi .n,body.light .side h3{color:#16323f;}
+</style>
+</head>
+<body>
+<div class="nav">
+  <a class="logo" href="https://www.nauticai-ai.com" target="_blank" rel="noopener"><img alt="NautiCAI" src="/assets/nauticai-logo-nav.png"></a>
+  <div class="title"><b>ROV Follow-up</b><span>Survey Ops Console</span></div>
+  <div class="navlinks">
+    <a href="/workflow">Workflow</a><a href="/dashboard">Dashboard</a><a href="/map">Survey Map</a>
+    <a href="/review">Data Review</a><a href="/detections">Detections</a><a id="navTwin">3D Twin</a>
+    <a href="/rov" class="on">ROV Ops</a><a href="/reports">Reports</a><a href="/settings">Settings</a>
+  </div>
+  <div class="navright">
+    <span class="ic" id="themeToggle" title="Toggle light / dark">&#9789;</span>
+    <span class="navitem" id="bellWrap"><span class="ic" id="bell">&#128276;</span><span class="bellbadge" id="bellBadge" style="display:none">0</span>
+      <div class="dropdown" id="bellMenu"><div class="ddhead">Notifications</div><div id="bellList"></div></div></span>
+    <span class="user navitem" id="userWrap"><span class="av" style="width:26px;height:26px;border-radius:50%;background:#1c3346;display:inline-block;margin-right:8px"></span>Survey Engineer &#9662;
+      <div class="dropdown" id="userMenu"><div class="ddhead">Account</div>
+        <a class="dditem" href="/settings">Settings</a>
+        <a class="dditem" id="clearSession" href="#">Clear session data</a>
+      </div></span>
+  </div>
+</div>
+
+<div class="shell">
+  <div class="main">
+    <div class="ph">ROV deployment queue</div>
+    <div class="psub" id="psub">Risk-ranked contacts from your active survey session</div>
+    <div class="toolbar">
+      <button class="btn warn" id="flagAll">Flag all high-risk</button>
+      <button class="btn acc" id="exportBtn">Export queue</button>
+      <button class="btn" id="syncBtn">Sync from session</button>
+      <a class="btn" href="/workflow">Survey workflow</a>
+    </div>
+    <div class="kpis" id="kpis"></div>
+    <div class="filters">
+      <select id="filterTier"><option value="">All risk tiers</option><option>High</option><option>Medium</option><option>Low</option></select>
+      <select id="filterState"><option value="">All states</option><option value="none">Unreviewed</option><option value="flagged">Flagged</option><option value="scheduled">Scheduled</option><option value="in_progress">In progress</option><option value="closed">Closed</option></select>
+      <select id="sortBy"><option value="score">Sort: risk score</option><option value="conf">Sort: confidence</option><option value="frame">Sort: frame</option></select>
+    </div>
+    <div class="panel">
+      <table><thead><tr>
+        <th>ID</th><th>Class</th><th>Conf</th><th>Risk</th><th>Score</th><th>Frame</th><th>Range</th><th>State</th><th></th>
+      </tr></thead><tbody id="rows"></tbody></table>
+      <div class="empty" id="empty" style="display:none">No contacts match the current filters.</div>
+    </div>
+    <p class="note" id="sourceNote"></p>
+  </div>
+  <aside class="side" id="side">
+    <div class="empty">Select a contact to capture ROV findings, measurements, and close-out.</div>
+  </aside>
+</div>
+
+<script src="/assets/seabed_survey_ops.js"></script>
+<script>
+(function () {
+  var OPS = window.SeabedSurveyOps;
+  var CFG = OPS.CONFIG;
+  var contacts = [];
+  var workflow = OPS.loadWorkflow();
+  var selected = null;
+
+  function goTwin() {
+    var s = OPS.readSession();
+    if (s && s.detections && s.detections.length) {
+      try {
+        sessionStorage.setItem('nauticai_twin', JSON.stringify({
+          points: s.detections.map(function (d) { return { cls: d.cls, conf: d.conf, x: d.x, y: d.y, frame: d.frame }; }),
+          frames: s.frames
+        }));
+      } catch (e) {}
+    }
+    location.href = CFG.nav.twin;
+  }
+
+  function refreshContacts() {
+    contacts = OPS.loadContacts().sort(function (a, b) { return b.score - a.score; });
+    var sess = OPS.readSession();
+    document.getElementById('psub').textContent = sess
+      ? ((sess.project || 'Survey') + ' · ' + (sess.survey_line || '') + ' · ' + contacts.length + ' contacts')
+      : 'Demo contacts — load frames in Data Review to use live detections';
+    document.getElementById('sourceNote').textContent = sess
+      ? 'Data source: ' + CFG.dataKeys[0] + ' · Workflow store: ' + CFG.workflowKey
+      : 'Showing sample contacts. Run detection in Data Review, then click Sync from session.';
+  }
+
+  function renderKpis() {
+    var sc = OPS.statusCounts(contacts, workflow);
+    var openHi = OPS.openHighRiskCount(contacts, workflow);
+    var kpis = [
+      ['', contacts.length, 'Contacts'],
+      ['hi', openHi, 'Open high-risk'],
+      ['', sc.flagged || 0, 'Flagged'],
+      ['', sc.scheduled || 0, 'Scheduled'],
+      ['', sc.in_progress || 0, 'In progress'],
+      ['', sc.closed || 0, 'Closed']
+    ];
+    document.getElementById('kpis').innerHTML = kpis.map(function (k) {
+      return '<div class="kpi' + (k[0] ? ' ' + k[0] : '') + '"><div class="n">' + k[1] + '</div><div class="l">' + k[2] + '</div></div>';
+    }).join('');
+  }
+
+  function filtered() {
+    var tier = document.getElementById('filterTier').value;
+    var st = document.getElementById('filterState').value;
+    var sort = document.getElementById('sortBy').value;
+    var list = contacts.filter(function (c) {
+      if (tier && c.tier !== tier) return false;
+      if (st && OPS.itemState(workflow, c.id) !== st) return false;
+      return true;
+    });
+    list.sort(function (a, b) {
+      if (sort === 'conf') return b.conf - a.conf;
+      if (sort === 'frame') return a.frame - b.frame;
+      return b.score - a.score;
+    });
+    return list;
+  }
+
+  function renderTable() {
+    var list = filtered();
+    var tb = document.getElementById('rows');
+    document.getElementById('empty').style.display = list.length ? 'none' : 'block';
+    tb.innerHTML = list.map(function (c) {
+      var st = OPS.itemState(workflow, c.id);
+      var lbl = CFG.stateLabels[st] || st;
+      return '<tr data-id="' + c.id + '"' + (selected === c.id ? ' class="sel"' : '') + '>' +
+        '<td class="mono">' + c.id + '</td>' +
+        '<td><span class="chip ' + c.risk + '">' + OPS.cap(c.cls) + '</span></td>' +
+        '<td class="mono">' + Math.round(c.conf * 100) + '%</td>' +
+        '<td><span class="chip ' + c.risk + '">' + c.risk + '</span></td>' +
+        '<td class="mono">' + c.score.toFixed(2) + '</td>' +
+        '<td class="mono">' + c.frame + '</td>' +
+        '<td class="mono">' + (c.range != null ? c.range + ' m' : '—') + '</td>' +
+        '<td><span class="st ' + st + '">' + lbl + '</span></td>' +
+        '<td><button class="btn" data-act="flag" data-id="' + c.id + '" style="padding:4px 8px;font-size:11px">Flag</button></td>' +
+        '</tr>';
+    }).join('');
+    renderKpis();
+  }
+
+  function renderSide(id) {
+    var el = document.getElementById('side');
+    var c = contacts.find(function (x) { return x.id === id; });
+    if (!c) {
+      el.innerHTML = '<div class="empty">Select a contact to capture ROV findings.</div>';
+      return;
+    }
+    var it = workflow.items[id] || {};
+    var st = OPS.itemState(workflow, id);
+    el.innerHTML =
+      '<h3>' + c.id + ' · ' + OPS.cap(c.cls) + '</h3>' +
+      '<p class="note">Risk score <span class="mono">' + c.score.toFixed(3) + '</span> (' + c.tier + ') · Frame <span class="mono">' + c.frame + '</span></p>' +
+      '<div class="h2">Workflow</div>' +
+      '<div class="row">' +
+      '<button class="btn" data-flow="flagged">Flag</button>' +
+      '<button class="btn" data-flow="scheduled">Schedule</button>' +
+      '<button class="btn" data-flow="in_progress">Start ROV</button>' +
+      '<button class="btn acc" data-flow="closed">Close</button>' +
+      '</div>' +
+      '<label>Reclassification</label><select id="f_cls">' +
+      ['rock','boulder','wreck','pipeline','cable','debris','scour','obstruction'].map(function (k) {
+        return '<option' + (k === (it.reclass || c.cls) ? ' selected' : '') + '>' + k + '</option>';
+      }).join('') + '</select>' +
+      '<label>Measured size (m)</label><input id="f_size" placeholder="e.g. 2.4 x 1.1" value="' + (it.size || '') + '">' +
+      '<label>Condition</label><select id="f_cond">' +
+      ['Unknown','Stable','Mobile','Damaged','Buried','Exposed'].map(function (x) {
+        return '<option' + (x === (it.condition || 'Unknown') ? ' selected' : '') + '>' + x + '</option>';
+      }).join('') + '</select>' +
+      '<label>Outcome</label><select id="f_out">' +
+      ['Pending','Confirmed hazard','False positive','Cleared','Monitor'].map(function (x) {
+        return '<option' + (x === (it.outcome || 'Pending') ? ' selected' : '') + '>' + x + '</option>';
+      }).join('') + '</select>' +
+      '<label>ROV notes</label><textarea id="f_notes" rows="4" placeholder="Pilot observations, video ref, CP reading…">' + (it.notes || '') + '</textarea>' +
+      '<div class="row"><button class="btn acc" id="saveFinding">Save finding</button></div>' +
+      '<p class="note">State: <strong>' + (CFG.stateLabels[st] || st) + '</strong></p>';
+
+    el.querySelectorAll('[data-flow]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var ns = btn.getAttribute('data-flow');
+        var patch = { notes: document.getElementById('f_notes').value };
+        if (ns === 'scheduled') patch.scheduled_at = new Date().toISOString();
+        OPS.setItemState(workflow, id, ns, patch);
+        OPS.saveWorkflow(workflow);
+        renderSide(id);
+        renderTable();
+      });
+    });
+    document.getElementById('saveFinding').addEventListener('click', function () {
+      OPS.setItemState(workflow, id, st, {
+        finding: {
+          reclass: document.getElementById('f_cls').value,
+          size: document.getElementById('f_size').value,
+          condition: document.getElementById('f_cond').value,
+          outcome: document.getElementById('f_out').value
+        },
+        reclass: document.getElementById('f_cls').value,
+        size: document.getElementById('f_size').value,
+        condition: document.getElementById('f_cond').value,
+        outcome: document.getElementById('f_out').value,
+        notes: document.getElementById('f_notes').value
+      });
+      OPS.saveWorkflow(workflow);
+      renderSide(id);
+    });
+  }
+
+  document.getElementById('rows').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-act]');
+    if (btn) {
+      e.stopPropagation();
+      var id = btn.getAttribute('data-id');
+      OPS.setItemState(workflow, id, 'flagged', {});
+      OPS.saveWorkflow(workflow);
+      selected = id;
+      renderTable();
+      renderSide(id);
+      return;
+    }
+    var tr = e.target.closest('tr[data-id]');
+    if (!tr) return;
+    selected = tr.getAttribute('data-id');
+    renderTable();
+    renderSide(selected);
+  });
+
+  document.getElementById('flagAll').addEventListener('click', function () {
+    var n = 0;
+    contacts.forEach(function (c) {
+      if (c.tier !== 'High' && c.risk !== 'Critical' && c.risk !== 'High') return;
+      if (OPS.itemState(workflow, c.id) !== 'none') return;
+      OPS.setItemState(workflow, c.id, 'flagged', {});
+      n++;
+    });
+    OPS.saveWorkflow(workflow);
+    renderTable();
+    alert(n ? ('Flagged ' + n + ' high-risk contact(s) for ROV follow-up.') : 'No unreviewed high-risk contacts to flag.');
+  });
+
+  document.getElementById('exportBtn').addEventListener('click', function () {
+    var payload = OPS.buildExportQueue(contacts, workflow);
+    var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = CFG.exportFilename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  document.getElementById('syncBtn').addEventListener('click', function () {
+    refreshContacts();
+    renderTable();
+    if (selected) renderSide(selected);
+  });
+
+  ['filterTier', 'filterState', 'sortBy'].forEach(function (id) {
+    document.getElementById(id).addEventListener('change', renderTable);
+  });
+
+  document.getElementById('navTwin').addEventListener('click', goTwin);
+  OPS.applyThemeFromStorage();
+  refreshContacts();
+  renderTable();
+})();
+</script>
+<script src="/assets/nauticai_nav.js"></script>
+</body>
+</html>

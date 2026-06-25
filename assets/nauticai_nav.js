@@ -136,10 +136,26 @@
     if (!nav.querySelector('a[href="/copilot"]')) {
       var cp = document.createElement('a');
       cp.href = '/copilot';
-      cp.textContent = 'Copilot';
+      cp.textContent = 'NautiCAI Chatbot';
       var rov = nav.querySelector('a[href="/rov"]');
       if (rov) nav.insertBefore(cp, rov);
       else nav.appendChild(cp);
+    }
+    if (!nav.querySelector('a[href="/triage"]')) {
+      var tr = document.createElement('a');
+      tr.href = '/triage';
+      tr.textContent = 'Triage';
+      var cp2 = nav.querySelector('a[href="/copilot"]');
+      if (cp2) cp2.parentNode.insertBefore(tr, cp2.nextSibling);
+      else nav.appendChild(tr);
+    }
+    if (!nav.querySelector('a[href="/dive-plan"]')) {
+      var dp = document.createElement('a');
+      dp.href = '/dive-plan';
+      dp.textContent = 'Dive Plan';
+      var rov = nav.querySelector('a[href="/rov"]');
+      if (rov) rov.parentNode.insertBefore(dp, rov);
+      else nav.appendChild(dp);
     }
     if (!nav.querySelector('a[href="/intelligence"]')) {
       var a = document.createElement('a');
@@ -163,6 +179,16 @@
       nav.querySelectorAll('a').forEach(function (x) { x.classList.remove('on'); });
       var ca = nav.querySelector('a[href="/copilot"]');
       if (ca) ca.classList.add('on');
+    }
+    if (location.pathname === '/triage') {
+      nav.querySelectorAll('a').forEach(function (x) { x.classList.remove('on'); });
+      var ta = nav.querySelector('a[href="/triage"]');
+      if (ta) ta.classList.add('on');
+    }
+    if (location.pathname === '/dive-plan') {
+      nav.querySelectorAll('a').forEach(function (x) { x.classList.remove('on'); });
+      var da = nav.querySelector('a[href="/dive-plan"]');
+      if (da) da.classList.add('on');
     }
     if (location.pathname === '/intelligence') {
       nav.querySelectorAll('a').forEach(function (x) { x.classList.remove('on'); });

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NautiCAI · Data Review Copilot</title>
+<title>NautiCAI · Chatbot</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -36,9 +36,9 @@
 <body>
 <div class="app">
   <div class="nav">
-    <div class="title"><b>Seabed Mapping AI</b><span>Data Review Copilot</span></div>
+    <div class="title"><b>NautiCAI Chatbot</b><span>Ask about your seabed survey</span></div>
     <div class="navlinks">
-      <a href="/review">Data Review</a><a href="/copilot" class="on">Copilot</a><a href="/dashboard">Dashboard</a>
+      <a href="/review">Data Review</a><a href="/copilot" class="on">NautiCAI Chatbot</a><a href="/triage">Triage</a><a href="/dashboard">Dashboard</a>
     </div>
   </div>
   <div class="main">
@@ -49,17 +49,21 @@
         <span class="chip" data-q="Give me a survey summary.">Survey summary</span>
         <span class="chip" data-q="What are the highest-risk contacts still needing review?">High-risk</span>
         <span class="chip" data-q="Propose lifecycle transitions for open contacts.">Propose transitions</span>
+        <span class="chip" data-q="How do I read an acoustic shadow in side-scan sonar?">Reading shadows</span>
+        <span class="chip" data-q="What's the difference between a wreck, UXO, and debris?">Class differences</span>
+        <span class="chip" data-q="What do the risk tiers and lifecycle states mean?">Risk & lifecycle</span>
       </div>
     </aside>
     <section class="chat">
-      <div class="msgs" id="msgs"><div id="emptyState" style="color:var(--mut);text-align:center;padding:60px 20px">Ask about the survey loaded in Data Review.</div></div>
+      <div class="msgs" id="msgs"><div id="emptyState" style="color:var(--mut);text-align:center;padding:60px 20px">Ask me anything during your seabed-mapping session — how sonar works, how to read a contact, or about the survey loaded in Data Review.</div></div>
       <div class="composer">
-        <textarea id="input" rows="2" placeholder="Ask about detections, risk, or follow-up…"></textarea>
+        <textarea id="input" rows="2" placeholder="Ask a question — concepts, interpretation, or the loaded survey…"></textarea>
         <button class="btn" id="sendBtn" type="button">Send</button>
       </div>
     </section>
   </div>
 </div>
+<script src="/assets/seabed_lifecycle.js"></script>
 <script>
 (function () {
   var SK = 'nauticai_session', FK = 'nauticai_review_frames', UK = 'nauticai_survey_info', LK = 'seabed_lifecycle';
@@ -67,12 +71,7 @@
   var inputEl = document.getElementById('input'), sendBtn = document.getElementById('sendBtn'), history = [];
 
   function readJSON(k, fb) { try { var r = localStorage.getItem(k); return r ? JSON.parse(r) : fb; } catch (e) { return fb; } }
-  function loadLifecycle() { return readJSON(LK, { items: {} }); }
-  function advanceLifecycle(cid, state) {
-    var lc = loadLifecycle();
-    lc.items[cid] = Object.assign({}, lc.items[cid] || { id: cid }, { state: state, updated: new Date().toISOString() });
-    localStorage.setItem(LK, JSON.stringify(lc));
-  }
+  function loadLifecycle() { return SeabedLifecycle.load(); }
   function loadPayload() {
     return { session: readJSON(SK, null), frames: readJSON(FK, []), survey_info: readJSON(UK, {}), lifecycle: loadLifecycle() };
   }
@@ -86,19 +85,7 @@
     return p;
   }
   function applyProposal(prop) {
-    advanceLifecycle(prop.contact_id, prop.proposed_state);
-    var frames = readJSON(FK, []), touched = false;
-    frames.forEach(function (fr) {
-      (fr.dets || []).forEach(function (d) {
-        if ((d.contact_id || d.id) === prop.contact_id) {
-          touched = true; d.lifecycle = prop.proposed_state;
-          if (prop.proposed_state === 'rov_confirmed') d.status = 'Verified';
-          else d.status = 'Review';
-        }
-      });
-    });
-    if (touched) localStorage.setItem(FK, JSON.stringify(frames));
-    return true;
+    return SeabedLifecycle.applyTransition(prop);
   }
   function renderProposals(el, proposals) {
     if (!proposals || !proposals.length) return;
@@ -137,7 +124,18 @@
           frames: payload.frames, survey_info: payload.survey_info, lifecycle: payload.lifecycle })
       });
       var data = await res.json().catch(function () { return {}; });
-      if (!res.ok) { appendMsg('assistant', 'Error: ' + (data.detail || res.status), []); return; }
+      if (!res.ok) {
+        var detail = data.detail || res.status;
+        if (String(detail).indexOf('ANTHROPIC_API_KEY') >= 0) {
+          detail = 'ANTHROPIC_API_KEY not set. Add it to seabed/.env (see .env.example) and restart python server.py';
+        } else if (String(detail).indexOf('pip install anthropic') >= 0) {
+          detail = 'Missing anthropic package. Run: pip install -r requirements.txt then restart the server.';
+        } else if (String(detail).indexOf('authentication_error') >= 0 || String(detail).indexOf('invalid x-api-key') >= 0) {
+          detail = 'Invalid API key in .env — paste your real key from console.anthropic.com (not the placeholder), then restart the server.';
+        }
+        appendMsg('assistant', 'Error: ' + detail, []);
+        return;
+      }
       appendMsg('assistant', data.reply || '', data.tools_used || [], data.proposals || []);
       history.push({ role: 'assistant', content: data.reply || '' });
     } catch (e) { appendMsg('assistant', 'Network error: ' + e.message, []); }

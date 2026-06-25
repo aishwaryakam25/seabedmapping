@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NautiCAI · ROV Dive Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  :root{--bg:#0a1622;--panel:#0e1d2c;--panel2:#0c1a28;--line:#1b3047;--tx:#cdd9e1;--mut:#6f8593;--accent:#2bb6c4;--crit:#e0564f;--high:#d9b13b;}
+  html,body{min-height:100%;} body{background:var(--bg);color:var(--tx);font-family:'Inter',system-ui,sans-serif;font-size:13px;}
+  .app{display:flex;flex-direction:column;min-height:100vh;}
+  .nav{display:flex;align-items:center;height:58px;background:var(--panel);border-bottom:1px solid var(--line);padding:0 20px;}
+  .title b{font-size:15px;font-weight:600;} .title span{display:block;font-size:11px;color:var(--mut);}
+  .navlinks a{color:var(--mut);text-decoration:none;margin-right:20px;font-size:13px;} .navlinks a.on{color:#eaf3f5;border-bottom:2px solid var(--accent);}
+  .toolbar{padding:14px 24px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--line);background:var(--panel2);}
+  .btn{padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:#10243480;color:var(--tx);cursor:pointer;font-family:inherit;font-size:12px;}
+  .btn.acc{border-color:var(--accent);color:#aee9f0;}
+  .btn.go{border-color:#3fae6a;color:#b8f0c8;}
+  .wrap{flex:1;padding:24px;max-width:960px;margin:0 auto;width:100%;}
+  .banner{background:#102434;border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin-bottom:18px;}
+  .banner h2{font-size:16px;font-weight:600;color:#eaf3f5;margin-bottom:6px;}
+  .banner p{font-size:12px;color:var(--mut);line-height:1.5;}
+  .warn{background:#3a2810;border:1px solid #6b4f1a;color:#f0d080;border-radius:8px;padding:12px;font-size:12px;margin-bottom:16px;}
+  .empty{text-align:center;padding:48px 20px;color:var(--mut);line-height:1.6;}
+  .dive{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+  .dhead{display:flex;gap:12px;align-items:flex-start;padding:14px 18px;background:#0c1a28;border-bottom:1px solid var(--line);}
+  .dnum{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;color:var(--accent);min-width:48px;}
+  .dtitle{font-size:14px;font-weight:600;color:#eaf3f5;}
+  .dmeta{font-size:11px;color:var(--mut);margin-top:4px;line-height:1.45;}
+  .dbody{padding:14px 18px;font-size:12px;line-height:1.55;}
+  .dbody dt{color:var(--mut);font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-top:10px;}
+  .dbody dt:first-child{margin-top:0;}
+  .dbody dd{margin:4px 0 0;color:var(--tx);}
+  .targets{margin-top:12px;border-top:1px solid #16283a;padding-top:10px;}
+  .tgt{padding:8px 0;border-bottom:1px solid #16283a;}
+  .tgt:last-child{border-bottom:none;}
+  .cid{font-family:'IBM Plex Mono',monospace;font-weight:500;}
+  .risk{font-size:10px;font-weight:600;text-transform:uppercase;padding:2px 6px;border-radius:4px;margin-left:6px;}
+  .risk.Critical{background:rgba(224,86,79,.15);color:#f0a8a8;}
+  .risk.High{background:rgba(217,177,59,.12);color:#f0d080;}
+  .notes{margin-top:10px;padding:10px;background:#0c1a28;border-radius:8px;font-size:11px;color:var(--mut);}
+  .statusbar{font-size:11px;color:var(--mut);margin-left:auto;}
+  .toast{position:fixed;bottom:24px;right:24px;background:#102434;border:1px solid var(--accent);color:#aee9f0;padding:10px 16px;border-radius:8px;font-size:12px;opacity:0;transition:.2s;z-index:99;}
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="nav">
+    <div class="title"><b>Seabed Mapping AI</b><span>ROV dive plan — field verification sequence</span></div>
+    <div class="navlinks">
+      <a href="/review">Data Review</a><a href="/triage">Triage</a><a href="/dive-plan" class="on">Dive Plan</a><a href="/rov">ROV Ops</a>
+    </div>
+  </div>
+  <div class="toolbar">
+    <button class="btn acc" id="btnRefresh" type="button">Refresh plan</button>
+    <button class="btn go" id="btnCopy" type="button" disabled>Copy plan</button>
+    <a class="btn" href="/triage">Escalate in Triage</a>
+    <span class="statusbar" id="statusBar">Loading…</span>
+  </div>
+  <div class="wrap">
+    <div id="planBanner" class="banner" style="display:none">
+      <h2 id="planSummary">—</h2>
+      <p>Verification-focused dive sequence from <code>rov_scheduled</code> contacts. Not a clearance certificate.</p>
+    </div>
+    <div id="planRoot"></div>
+  </div>
+</div>
+<div class="toast" id="toast">Copied</div>
+<script>
+(function () {
+  var SK = 'nauticai_session', FK = 'nauticai_review_frames', UK = 'nauticai_survey_info', LK = 'seabed_lifecycle';
+  var planRoot = document.getElementById('planRoot');
+  var btnCopy = document.getElementById('btnCopy');
+  var currentPlan = null;
+  var planText = '';
+
+  function readJSON(k, fb) { try { var r = localStorage.getItem(k); return r ? JSON.parse(r) : fb; } catch (e) { return fb; } }
+  function loadLifecycle() {
+    var raw = readJSON(LK, { items: {} });
+    if (Array.isArray(raw)) {
+      var items = {};
+      raw.forEach(function (x) { if (x && x.id) items[x.id] = x; });
+      return { items: items };
+    }
+    if (!raw.items) raw.items = {};
+    return raw;
+  }
+  function loadPayload() {
+    return { session: readJSON(SK, null), frames: readJSON(FK, []), survey_info: readJSON(UK, {}), lifecycle: loadLifecycle() };
+  }
+  function toast(msg) {
+    var t = document.getElementById('toast');
+    t.textContent = msg || 'Copied';
+    t.classList.add('show');
+    setTimeout(function () { t.classList.remove('show'); }, 2200);
+  }
+  function planToText(plan) {
+    if (!plan || plan.empty) return plan.summary || '';
+    var lines = ['NAUTICAI ROV DIVE PLAN', plan.summary, ''];
+    (plan.dives || []).forEach(function (d) {
+      lines.push('DIVE ' + d.dive_number + ' — Frame ' + d.frame + ' (' + d.target_count + ' target(s))');
+      lines.push('  Objective: ' + d.objective);
+      lines.push('  Location: ' + d.location);
+      lines.push('  Tooling: ' + d.tooling);
+      (d.targets || []).forEach(function (t) {
+        lines.push('    · ' + t.contact_id + ' ' + (t.cls || '') + ' [' + (t.class_risk || '') + '] — ' + t.objective);
+      });
+      (d.notes || []).forEach(function (n) { lines.push('  Note: ' + n); });
+      lines.push('');
+    });
+    lines.push('Verification only — not a clearance certificate.');
+    return lines.join('\n');
+  }
+  function renderPlan(plan) {
+    currentPlan = plan;
+    planText = planToText(plan);
+    btnCopy.disabled = !plan || plan.empty;
+    document.getElementById('planBanner').style.display = plan ? '' : 'none';
+    document.getElementById('planSummary').textContent = plan.summary || '—';
+    planRoot.innerHTML = '';
+    if (!plan || plan.empty) {
+      planRoot.innerHTML = '<div class="warn">No ROV-scheduled contacts. Escalate high-significance targets in <a href="/triage" style="color:#f0d080">Triage</a>, then return here.</div>';
+      document.getElementById('statusBar').textContent = '0 dives';
+      return;
+    }
+    (plan.dives || []).forEach(function (d) {
+      var card = document.createElement('div');
+      card.className = 'dive';
+      var head = document.createElement('div');
+      head.className = 'dhead';
+      head.innerHTML = '<div class="dnum">' + d.dive_number + '</div><div><div class="dtitle">Frame ' + d.frame + ' — ' + d.target_count + ' target' + (d.target_count === 1 ? '' : 's') + '</div>' +
+        '<div class="dmeta">' + d.location + '</div></div>';
+      card.appendChild(head);
+      var body = document.createElement('dl');
+      body.className = 'dbody';
+      body.innerHTML = '<dt>Objective</dt><dd>' + d.objective + '</dd>' +
+        '<dt>Suggested tooling</dt><dd>' + d.tooling + '</dd>';
+      var tg = document.createElement('div');
+      tg.className = 'targets';
+      (d.targets || []).forEach(function (t) {
+        var row = document.createElement('div');
+        row.className = 'tgt';
+        row.innerHTML = '<span class="cid">' + t.contact_id + '</span><span class="risk ' + (t.class_risk || '') + '">' + (t.class_risk || '') + '</span> · ' + (t.cls || '') +
+          '<div class="dmeta" style="margin-top:4px">' + t.objective + '<br>Tooling: ' + t.tooling + '</div>';
+        tg.appendChild(row);
+      });
+      body.appendChild(tg);
+      if (d.notes && d.notes.length) {
+        var notes = document.createElement('div');
+        notes.className = 'notes';
+        notes.innerHTML = d.notes.map(function (n) { return '· ' + n; }).join('<br>');
+        body.appendChild(notes);
+      }
+      card.appendChild(body);
+      planRoot.appendChild(card);
+    });
+    document.getElementById('statusBar').textContent = plan.dive_count + ' dive' + (plan.dive_count === 1 ? '' : 's') + ' · ' + plan.target_count + ' targets';
+  }
+  async function fetchPlan() {
+    document.getElementById('statusBar').textContent = 'Planning…';
+    try {
+      var res = await fetch('/api/agent/dive-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(loadPayload())
+      });
+      var data = await res.json().catch(function () { return {}; });
+      if (!res.ok) {
+        planRoot.innerHTML = '<div class="warn">Error: ' + (data.detail || res.status) + '</div>';
+        return;
+      }
+      renderPlan(data);
+    } catch (e) {
+      planRoot.innerHTML = '<div class="warn">Network error: ' + e.message + '</div>';
+    }
+  }
+  document.getElementById('btnRefresh').onclick = fetchPlan;
+  btnCopy.onclick = function () {
+    if (!planText) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(planText).then(function () { toast('Dive plan copied — paste into email or Teams'); });
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = planText; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); toast('Copied'); } catch (e) { toast('Copy failed'); }
+      document.body.removeChild(ta);
+    }
+  };
+  fetchPlan();
+})();
+</script>
+<script src="/assets/nauticai_nav.js"></script>
+</body>
+</html>

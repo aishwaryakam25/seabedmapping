@@ -94,6 +94,11 @@
   .box{position:absolute;border:1.5px solid #d9b13b;border-radius:2px;cursor:pointer;box-sizing:border-box;}
   .box .bl{position:absolute;top:-18px;left:0;font-size:10px;font-weight:600;padding:1px 5px;border-radius:3px 3px 3px 0;white-space:nowrap;color:#0a1622;line-height:14px;z-index:2;pointer-events:none;}
   .box.sel{box-shadow:0 0 0 2px #fff,0 0 12px rgba(255,255,255,.5);z-index:11;}
+  .shadowov{position:absolute;box-sizing:border-box;pointer-events:none;z-index:1;
+    border:1px dashed rgba(120,200,255,.55);
+    background:repeating-linear-gradient(135deg,rgba(20,40,60,.34),rgba(20,40,60,.34) 5px,rgba(60,120,160,.16) 5px,rgba(60,120,160,.16) 10px);}
+  .shadowov .hl{position:absolute;font-size:10px;font-weight:600;padding:1px 5px;border-radius:3px;white-space:nowrap;
+    background:#102a3acc;color:#aee9f0;border:1px solid rgba(120,200,255,.5);line-height:14px;}
   .vtools{position:absolute;left:14px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;z-index:6;}
   .vtools button{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:#0d1f2ccc;color:var(--tx);cursor:pointer;display:flex;align-items:center;justify-content:center;margin-bottom:8px;}
   .dropmsg{color:var(--mut);text-align:center;cursor:pointer;} .dropmsg b{display:block;color:#cdd9e1;font-size:15px;margin-bottom:6px;}
@@ -164,7 +169,7 @@
     </a>
     <div class="title"><b>Seabed Mapping AI</b><span>Sonar Object Detection</span></div>
     <div class="navlinks">
-      <a href="/workflow">Workflow</a><a href="/dashboard">Dashboard</a><a href="/map">Survey Map</a><a class="on">Data Review</a><a href="/detections">Detections</a><a id="navTwin">3D Twin</a><a href="/copilot">Copilot</a><a href="/rov">ROV Ops</a><a href="/intelligence">Intelligence</a><a href="/defects-report">Defects Report</a><a href="/reports">Reports</a><a href="/settings">Settings</a>
+      <a href="/workflow">Workflow</a><a href="/dashboard">Dashboard</a><a href="/map">Survey Map</a><a class="on">Data Review</a><a href="/detections">Detections</a><a id="navTwin">3D Twin</a><a href="/copilot">NautiCAI Chatbot</a><a href="/triage">Triage</a><a href="/dive-plan">Dive Plan</a><a href="/rov">ROV Ops</a><a href="/intelligence">Intelligence</a><a href="/defects-report">Defects Report</a><a href="/reports">Reports</a><a href="/settings">Settings</a>
     </div>
     <div class="navright">
       <span class="ic" id="themeToggle" title="Toggle light / dark">&#9789;</span>
@@ -223,6 +228,7 @@
         <div class="scanline"></div>
         <div class="vtools">
           <button type="button" id="measureBtn" title="Measure distance (two clicks)">&#8644;</button>
+          <button type="button" id="shadowBtn" class="on" title="Shadow physics overlay — show measured acoustic shadow + height">&#9696;</button>
           <button type="button" title="Brightness">&#9728;</button>
           <button type="button" title="Contrast">&#9681;</button>
           <button type="button" title="Center">&#8853;</button>
@@ -250,6 +256,7 @@
             <div class="drow"><span class="dk">Range</span><span class="dv mono" id="dRange">&mdash;</span></div>
             <div class="drow"><span class="dk">Size</span><span class="dv mono" id="dSize">&mdash;</span></div>
             <div class="drow"><span class="dk">Height</span><span class="dv mono" id="dHeight">&mdash;</span></div>
+            <div class="drow"><span class="dk">Shadow</span><span class="dv mono" id="dShadow">&mdash;</span></div>
             <div class="drow"><span class="dk">Burial</span><span class="dv" id="dBurial">&mdash;</span></div>
             <div class="drow"><span class="dk">Attribution</span><span class="dv" id="dExplain">&mdash;</span></div>
             <div class="drow"><span class="dk">Urgency</span><span class="dv" id="dUrgency">&mdash;</span></div>
@@ -329,7 +336,7 @@
   var SESSION_KEY='nauticai_session',FRAMES_KEY='nauticai_review_frames';
   var SESSION_KEY='nauticai_session',FRAMES_KEY='nauticai_review_frames';
   var frames=[];          // {name,file,src,natW,natH,dets,inferMs}
-  var active=-1, sel=-1, rangeScale=150, restoreToken=0, loadAppendMode=false;
+  var active=-1, sel=-1, rangeScale=150, restoreToken=0, loadAppendMode=false, showShadows=true;
   var viewMode='sonar', measureOn=false, measurePts=[], mosaicBuilt=false;
   var SET_CONF='set_conf', SET_ENH='set_enh', SET_TVG='set_tvg';
   var viewMode='sonar', measureOn=false, measurePts=[], mosaicBuilt=false;
@@ -473,7 +480,7 @@
       var im=new Image();
       im.onload=function(){
         var fr={name:f.name,file:f,src:e.target.result,natW:im.naturalWidth,natH:im.naturalHeight,dets:[],inferMs:0};
-        var fd=new FormData();fd.append('file',f);fd.append('conf',String(getConfThreshold()));var t0=Date.now();
+        var fd=new FormData();fd.append('file',f);fd.append('conf',String(getConfThreshold()));fd.append('range_scale',String(rangeScale));var t0=Date.now();
         fetch('/detect',{method:'POST',body:fd}).then(function(res){return res.ok?res.json():Promise.reject();}).then(function(d){
           fr.inferMs=Date.now()-t0;fr.dets=processDets(d.detections||[],im);addFrame(fr);done();
         }).catch(function(){fr.dets=[];addFrame(fr);done();});
@@ -492,6 +499,8 @@
         east:512345.67+(cxn-0.5)*200,north:6123456.78-(cyn-0.5)*200,status:'Review',note:'',
         contact_id:'CT-'+(active>=0?active+1:1)+'-'+String(i+1).padStart(2,'0')};
       if(window.SeabedIntelligence)det=SeabedIntelligence.enrichDetection(det,im.naturalWidth,im.naturalHeight,rangeScale,active+1);
+      // Prefer the server's pixel-measured shadow physics over the box-aspect heuristic.
+      if(d.shadow){det.shadow=d.shadow;if(d.shadow.measured){det.height_m=d.shadow.height_m;det.burial=d.shadow.burial;det.burial_label=d.shadow.burial_label;det.shadow_len_m=d.shadow.shadow_len_m;}}
       return det;
     });
   }
@@ -599,6 +608,7 @@
   }
   function drawBoxes(filter){
     $$('.box').forEach(function(b){b.parentNode.removeChild(b);});
+    $$('.shadowov').forEach(function(b){b.parentNode.removeChild(b);});
     if(!img.naturalWidth||!stage.offsetWidth)return;
     var m=boxLayoutMetrics();
     var vis=visibleDets();
@@ -607,6 +617,19 @@
       if(origIdx<0)origIdx=i;
       if(filter&&filter!=='all'&&d.cls!==filter)return;
       var col=colorFor(d.cls);
+      // Shadow-physics overlay: the measured acoustic shadow + implied height (drawn under the box).
+      if(showShadows&&d.shadow&&d.shadow.measured&&d.shadow.shadow_box){
+        var sb=d.shadow.shadow_box;
+        var so=document.createElement('div');so.className='shadowov';
+        so.style.left=(m.ox+sb[0]*m.sx)+'px';
+        so.style.top=(m.oy+sb[1]*m.sy)+'px';
+        so.style.width=Math.max(2,(sb[2]-sb[0])*m.sx)+'px';
+        so.style.height=Math.max(2,(sb[3]-sb[1])*m.sy)+'px';
+        var hl=document.createElement('span');hl.className='hl';
+        hl.textContent='h≈'+d.shadow.height_m+' m';
+        hl.style.bottom='-16px';hl.style[d.shadow.shadow_dir>0?'right':'left']='0';
+        so.appendChild(hl);stage.appendChild(so);
+      }
       var b=document.createElement('div');b.className='box'+(origIdx===sel?' sel':'');
       b.style.left=(m.ox+d.box[0]*m.sx)+'px';
       b.style.top=(m.oy+d.box[1]*m.sy)+'px';
@@ -656,7 +679,19 @@
     $('#dPos').textContent='E: '+d.east.toFixed(2)+', N: '+d.north.toFixed(2);
     $('#dRange').textContent=rangeOf(d).toFixed(1)+' m';
     $('#dSize').textContent=(d.wnorm*rangeScale).toFixed(1)+' m x '+((d.box[3]-d.box[1])/natH*rangeScale).toFixed(1)+' m';
-    $('#dHeight').textContent=d.height_m!=null?d.height_m+' m':'\u2014';
+    var sh=d.shadow;
+    if(sh&&sh.measured){
+      $('#dHeight').textContent=d.height_m+' m  (measured)';
+      $('#dHeight').title='Estimated from measured acoustic shadow under '+sh.assumption;
+      $('#dShadow').textContent=sh.shadow_len_m+' m  ('+sh.shadow_len_px+' px, '+(sh.shadow_dir>0?'starboard':'port')+')';
+      $('#dShadow').title=sh.method+' \u00b7 '+sh.assumption;
+    }else if(sh&&!sh.measured){
+      $('#dHeight').textContent=(d.height_m!=null?d.height_m+' m':'\u2014');
+      $('#dShadow').textContent='none detected \u2014 likely buried/flush';$('#dShadow').title=sh.method;
+    }else{
+      $('#dHeight').textContent=d.height_m!=null?d.height_m+' m  (est.)':'\u2014';
+      $('#dShadow').textContent='\u2014';$('#dShadow').title='';
+    }
     $('#dBurial').textContent=d.burial_label||'\u2014';
     $('#dExplain').textContent=d.explain||'\u2014';
     $('#dUrgency').textContent=d.urgency_label||d.urgency||'\u2014';
@@ -718,7 +753,7 @@
       var blob=fr.file;
       function run(b){
         if(!b){if(--left===0){mosaicBuilt=false;if(viewMode==='mosaic')renderMosaic();toast('Re-detect complete');}return;}
-        var fd=new FormData();fd.append('file',b,fr.name);fd.append('conf',String(getConfThreshold()));
+        var fd=new FormData();fd.append('file',b,fr.name);fd.append('conf',String(getConfThreshold()));fd.append('range_scale',String(rangeScale));
         fetch('/detect',{method:'POST',body:fd}).then(function(r){return r.ok?r.json():Promise.reject();}).then(function(d){
           var im=new Image();im.onload=function(){
             fr.dets=processDets(d.detections||[],im);
@@ -838,6 +873,7 @@
     else{clearMeasureDraw();$('#measureHud').textContent='';}
   }
   $('#measureBtn').addEventListener('click',function(){toggleMeasure(!measureOn);});
+  $('#shadowBtn').addEventListener('click',function(){showShadows=!showShadows;this.classList.toggle('on',showShadows);if(dets.length)drawBoxes($('#classFilter').value);toast('Shadow overlay '+(showShadows?'on':'off'));});
   $('#measureOverlay').addEventListener('click',function(ev){
     if(!measureOn||!img.naturalWidth)return;
     var ir=img.getBoundingClientRect();
@@ -975,7 +1011,7 @@
 
   // ---- session persistence (shared across all pages) ----
   var saveTimer=null;
-  function detForStore(d){return {cls:d.cls,conf:d.conf,box:d.box,cxn:d.cxn,cyn:d.cyn,wnorm:d.wnorm,east:d.east,north:d.north,status:d.status,note:d.note,contact_id:d.contact_id,height_m:d.height_m,burial:d.burial,urgency:d.urgency};}
+  function detForStore(d){return {cls:d.cls,conf:d.conf,box:d.box,cxn:d.cxn,cyn:d.cyn,wnorm:d.wnorm,east:d.east,north:d.north,status:d.status,note:d.note,contact_id:d.contact_id,height_m:d.height_m,burial:d.burial,urgency:d.urgency,shadow:d.shadow,shadow_len_m:d.shadow_len_m};}
   function buildSessionPayload(){
     var detections=[],FW=60,FH=60,SP=72;
     frames.forEach(function(fr,fi){var ox=fi*SP;(fr.dets||[]).forEach(function(d){
@@ -986,7 +1022,9 @@
   }
   function buildLiteFrames(){
     return frames.map(function(fr){
-      return {name:fr.name,natW:fr.natW,natH:fr.natH,inferMs:fr.inferMs||0,dets:(fr.dets||[]).map(detForStore)};
+      var o={name:fr.name,natW:fr.natW,natH:fr.natH,inferMs:fr.inferMs||0,dets:(fr.dets||[]).map(detForStore)};
+      if(fr.thumb)o.thumb=fr.thumb;   // keep cached preview so a sync/unload save doesn't blank the frame
+      return o;
     });
   }
   function syncTwinCache(sess){
@@ -1027,9 +1065,22 @@
   }
   function compressThumb(dataUrl,done){compressImage(dataUrl,360,0.78,done);}
   function compressPdfImage(dataUrl,done){compressImage(dataUrl,1280,0.85,done);}
+  function setFrames(stored){
+    // Persist frames, degrading gracefully under the ~5MB localStorage quota:
+    // 1) full (thumb + pdfSrc), 2) thumb only (drop heavy pdfSrc), 3) metadata only.
+    // Keeping the thumb means the viewer and detection crops survive a reload.
+    var attempts=[stored||[],
+      (stored||[]).map(function(s){var c=Object.assign({},s);delete c.pdfSrc;return c;}),
+      (stored||[]).map(function(s){var c=Object.assign({},s);delete c.pdfSrc;delete c.thumb;return c;})];
+    for(var i=0;i<attempts.length;i++){
+      try{localStorage.setItem(FRAMES_KEY,JSON.stringify(attempts[i]));return i;}catch(e){}
+    }
+    return -1;
+  }
   function writeSession(sess,stored){
-    try{localStorage.setItem(SESSION_KEY,JSON.stringify(sess));localStorage.setItem(FRAMES_KEY,JSON.stringify(stored||[]));syncTwinCache(sess);}
-    catch(e){try{localStorage.setItem(SESSION_KEY,JSON.stringify(sess));syncTwinCache(sess);}catch(e2){}}
+    try{localStorage.setItem(SESSION_KEY,JSON.stringify(sess));}catch(e){}
+    setFrames(stored);
+    syncTwinCache(sess);
   }
   function writeSessionSync(sess){
     writeSession(sess,buildLiteFrames());
@@ -1044,6 +1095,7 @@
       frames.forEach(function(fr,i){
         compressThumb(fr.src,function(thumb){
           compressPdfImage(fr.src,function(pdfSrc){
+            fr.thumb=thumb;   // cache so buildLiteFrames keeps the preview on later saves
             stored[i]={name:fr.name,thumb:thumb,pdfSrc:pdfSrc,natW:fr.natW,natH:fr.natH,inferMs:fr.inferMs,dets:(fr.dets||[]).map(detForStore)};
             if(--left===0)writeSession(sess,stored);
           });
@@ -1073,7 +1125,7 @@
       var im=new Image();
       im.onload=function(){
         if(token!==restoreToken)return;
-        var fr={name:sf.name,file:null,src:sf.pdfSrc||sf.thumb,pdfSrc:sf.pdfSrc||sf.thumb,natW:sf.natW,natH:sf.natH,inferMs:sf.inferMs||0,
+        var fr={name:sf.name,file:null,src:sf.pdfSrc||sf.thumb,pdfSrc:sf.pdfSrc||sf.thumb,thumb:sf.thumb,natW:sf.natW,natH:sf.natH,inferMs:sf.inferMs||0,
           dets:(sf.dets||[]).map(function(d,di){
             var o=Object.assign({},d);
             o.crop=cropFrom(im,d.box,sf.natW,sf.natH);

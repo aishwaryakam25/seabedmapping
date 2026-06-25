@@ -1,13 +1,31 @@
 """
 server.py -- FastAPI backend for the NautiCAI sonar detection app.
 
-    pip install fastapi "uvicorn[standard]" python-multipart ultralytics reportlab matplotlib
-    python server.py            # then open http://127.0.0.1:8000/review
+    pip install -r requirements.txt
+    copy .env.example .env   # then set ANTHROPIC_API_KEY
+    python server.py         # http://127.0.0.1:8000/review
 """
 import asyncio
 import base64
 import os
 from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+
+
+def _load_dotenv() -> None:
+    """Load .env from project root (does not override existing env vars)."""
+    env_file = HERE / ".env"
+    if not env_file.is_file():
+        return
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    load_dotenv(env_file, override=False)
+
+
+_load_dotenv()
 
 import cv2
 import numpy as np
@@ -26,12 +44,14 @@ from report import (
 )
 from agent_service import router as agent_router
 from agent_actions import router as agent_actions_router
+from agent_triage import router as triage_router
+from agent_rov import router as rov_router
+from shadow_physics import annotate_detections
 
 _pw_browsers = Path(os.environ.get("LOCALAPPDATA", "")) / "ms-playwright"
 if _pw_browsers.is_dir() and "PLAYWRIGHT_BROWSERS_PATH" not in os.environ:
     os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(_pw_browsers)
 
-HERE = Path(__file__).resolve().parent
 TRAINED = HERE / "runs" / "detect" / "sonar_yolo" / "weights" / "best.pt"
 _LOGO_FILE = HERE / "assets" / "nauticai-logo-nav.png"
 if _LOGO_FILE.exists():
@@ -47,6 +67,8 @@ model = YOLO(weights)
 app = FastAPI(title="NautiCAI Seabed Detector")
 app.include_router(agent_router)
 app.include_router(agent_actions_router)
+app.include_router(triage_router)
+app.include_router(rov_router)
 app.mount("/assets", StaticFiles(directory=HERE / "assets"), name="assets")
 
 
@@ -160,8 +182,19 @@ def intelligence_page():
 
 
 @app.get("/copilot", response_class=HTMLResponse)
+@app.get("/chatbot", response_class=HTMLResponse)
 def copilot_page():
     return _page("chat.html")
+
+
+@app.get("/triage", response_class=HTMLResponse)
+def triage_page():
+    return _page("triage.html")
+
+
+@app.get("/dive-plan", response_class=HTMLResponse)
+def dive_plan_page():
+    return _page("dive_plan.html")
 
 
 @app.post("/api/intelligence/clearance")
@@ -180,7 +213,11 @@ async def intelligence_clearance(request: Request):
 
 
 @app.post("/detect")
-async def detect(file: UploadFile = File(...), conf: float = Form(0.25)):
+async def detect(
+    file: UploadFile = File(...),
+    conf: float = Form(0.25),
+    range_scale: float = Form(150.0),
+):
     raw = await file.read()
     img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
     if img is None:
@@ -188,6 +225,9 @@ async def detect(file: UploadFile = File(...), conf: float = Form(0.25)):
 
     r = model.predict(source=img, conf=conf, verbose=False)[0]
     detections = _detections_from_result(r)
+    # Measure the real acoustic shadow behind each contact → pixel-based height.
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    annotate_detections(gray, detections, range_scale=range_scale)
     annotated = annotate_image(img, detections)
     _, buf = cv2.imencode(".jpg", annotated)
     b64 = base64.b64encode(buf).decode()

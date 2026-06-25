@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NautiCAI · Survey Triage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  :root{--bg:#0a1622;--panel:#0e1d2c;--panel2:#0c1a28;--line:#1b3047;--tx:#cdd9e1;--mut:#6f8593;--accent:#2bb6c4;--crit:#e0564f;--high:#d9b13b;--med:#6f9fd4;--low:#6f8593;}
+  html,body{height:100%;} body{background:var(--bg);color:var(--tx);font-family:'Inter',system-ui,sans-serif;font-size:13px;}
+  .app{display:flex;flex-direction:column;min-height:100vh;}
+  .nav{display:flex;align-items:center;height:58px;background:var(--panel);border-bottom:1px solid var(--line);padding:0 20px;}
+  .title b{font-size:15px;font-weight:600;} .title span{display:block;font-size:11px;color:var(--mut);}
+  .navlinks a{color:var(--mut);text-decoration:none;margin-right:20px;font-size:13px;} .navlinks a.on{color:#eaf3f5;border-bottom:2px solid var(--accent);}
+  .toolbar{padding:14px 24px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--line);background:var(--panel2);}
+  .btn{padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:#10243480;color:var(--tx);cursor:pointer;font-family:inherit;font-size:12px;}
+  .btn.acc{border-color:var(--accent);color:#aee9f0;}
+  .btn.go{border-color:#3fae6a;color:#b8f0c8;}
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+  .wrap{flex:1;padding:24px;max-width:1100px;margin:0 auto;width:100%;}
+  .banner{background:#102434;border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin-bottom:18px;}
+  .banner h2{font-size:16px;font-weight:600;color:#eaf3f5;margin-bottom:6px;}
+  .banner p{font-size:12px;color:var(--mut);line-height:1.5;}
+  .tally{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
+  .pill{font-size:11px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:#0c1a28;}
+  .pill.crit{border-color:var(--crit);color:#f0a8a8;}
+  .pill.high{border-color:var(--high);color:#f0d080;}
+  .warn{background:#3a2810;border:1px solid #6b4f1a;color:#f0d080;border-radius:8px;padding:12px;font-size:12px;margin-bottom:16px;}
+  .empty{text-align:center;padding:60px 20px;color:var(--mut);}
+  .group{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:16px;overflow:hidden;}
+  .ghead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;background:#0c1a28;border-bottom:1px solid var(--line);}
+  .ghead h3{font-size:14px;font-weight:600;color:#eaf3f5;}
+  .ghead .cnt{font-size:11px;color:var(--mut);}
+  .row{display:flex;align-items:flex-start;gap:12px;padding:12px 18px;border-bottom:1px solid #16283a;font-size:12px;}
+  .row:last-child{border-bottom:none;}
+  .row input{margin-top:3px;}
+  .cid{font-family:'IBM Plex Mono',monospace;font-weight:500;}
+  .meta{color:var(--mut);margin-top:3px;line-height:1.45;}
+  .risk{display:inline-block;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:2px 8px;border-radius:4px;margin-left:8px;}
+  .risk.Critical{background:rgba(224,86,79,.15);color:#f0a8a8;}
+  .risk.High{background:rgba(217,177,59,.12);color:#f0d080;}
+  .risk.Medium{background:rgba(111,159,212,.12);color:#a8c8f0;}
+  .risk.Low{background:rgba(111,133,147,.12);color:#9ab0bc;}
+  .arrow{color:var(--accent);font-weight:600;}
+  .statusbar{font-size:11px;color:var(--mut);margin-left:auto;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="nav">
+    <div class="title"><b>Seabed Mapping AI</b><span>Survey Triage — bulk lifecycle approval</span></div>
+    <div class="navlinks">
+      <a href="/review">Data Review</a><a href="/copilot">NautiCAI Chatbot</a><a href="/triage" class="on">Triage</a>
+    </div>
+  </div>
+  <div class="toolbar">
+    <button class="btn acc" id="btnRefresh" type="button">Re-plan survey</button>
+    <button class="btn" id="btnSelectAll" type="button">Select all</button>
+    <button class="btn" id="btnSelectHigh" type="button">High-significance only</button>
+    <button class="btn go" id="btnApprove" type="button" disabled>Approve selected</button>
+    <span class="statusbar" id="statusBar">Loading…</span>
+  </div>
+  <div class="wrap">
+    <div id="sessWarn" class="warn" style="display:none">No frames loaded. Open <a href="/review" style="color:#f0d080">Data Review</a> and load frames first.</div>
+    <div id="planBanner" class="banner" style="display:none">
+      <h2 id="planSummary">—</h2>
+      <p>Proposals only — analyst approval required. Clearance is never proposed or applied from this view.</p>
+      <div class="tally" id="riskTally"></div>
+    </div>
+    <div id="planRoot"></div>
+  </div>
+</div>
+<script src="/assets/seabed_lifecycle.js"></script>
+<script>
+(function () {
+  var SK = 'nauticai_session', FK = 'nauticai_review_frames', UK = 'nauticai_survey_info';
+  var planRoot = document.getElementById('planRoot');
+  var statusBar = document.getElementById('statusBar');
+  var btnApprove = document.getElementById('btnApprove');
+  var currentPlan = null;
+  var selected = {};
+
+  function readJSON(k, fb) { try { var r = localStorage.getItem(k); return r ? JSON.parse(r) : fb; } catch (e) { return fb; } }
+  function loadPayload() {
+    return {
+      session: readJSON(SK, null),
+      frames: readJSON(FK, []),
+      survey_info: readJSON(UK, {}),
+      lifecycle: SeabedLifecycle.load()
+    };
+  }
+  function detCount(p) {
+    var n = 0;
+    (p.frames || []).forEach(function (f) { n += (f.dets || []).length; });
+    if (!n && p.session && p.session.detections) n = p.session.detections.length;
+    return n;
+  }
+  function labelState(s) {
+    return (SeabedLifecycle.LIFECYCLE_LABEL[s] || s);
+  }
+  function updateApproveBtn() {
+    var n = Object.keys(selected).filter(function (k) { return selected[k]; }).length;
+    btnApprove.disabled = n === 0;
+    btnApprove.textContent = n ? ('Approve selected (' + n + ')') : 'Approve selected';
+  }
+  function setSelected(id, on) {
+    selected[id] = !!on;
+    updateApproveBtn();
+  }
+  function clearSelection() {
+    selected = {};
+    updateApproveBtn();
+  }
+  function renderRiskTally(tally) {
+    var el = document.getElementById('riskTally');
+    el.innerHTML = '';
+    ['Critical', 'High', 'Medium', 'Low'].forEach(function (r) {
+      if (!tally[r]) return;
+      var p = document.createElement('span');
+      p.className = 'pill ' + r.toLowerCase();
+      p.textContent = r + ': ' + tally[r];
+      el.appendChild(p);
+    });
+  }
+  function renderPlan(plan) {
+    currentPlan = plan;
+    clearSelection();
+    planRoot.innerHTML = '';
+    document.getElementById('planBanner').style.display = plan ? '' : 'none';
+    if (!plan) return;
+    document.getElementById('planSummary').textContent = plan.summary || '—';
+    renderRiskTally(plan.risk_tally || {});
+    if (plan.empty || !plan.groups || !plan.groups.length) {
+      planRoot.innerHTML = '<div class="empty">No pending lifecycle transitions. Re-plan after loading new frames or changing lifecycle in Data Review.</div>';
+      statusBar.textContent = '0 proposals';
+      return;
+    }
+    plan.groups.forEach(function (grp) {
+      var box = document.createElement('div');
+      box.className = 'group';
+      var head = document.createElement('div');
+      head.className = 'ghead';
+      head.innerHTML = '<div><h3>' + grp.label + '</h3><div class="cnt">' + grp.count + ' contact' + (grp.count === 1 ? '' : 's') + '</div></div>';
+      var selGrp = document.createElement('button');
+      selGrp.className = 'btn';
+      selGrp.type = 'button';
+      selGrp.textContent = 'Select group';
+      selGrp.onclick = function () {
+        (grp.proposals || []).forEach(function (p) { setSelected(p.contact_id, true); });
+        box.querySelectorAll('input[type=checkbox]').forEach(function (cb) { cb.checked = true; });
+      };
+      head.appendChild(selGrp);
+      box.appendChild(head);
+      (grp.proposals || []).forEach(function (p) {
+        var row = document.createElement('div');
+        row.className = 'row';
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.dataset.id = p.contact_id;
+        cb.onchange = function () { setSelected(p.contact_id, cb.checked); };
+        var body = document.createElement('div');
+        var risk = p.class_risk || 'Medium';
+        body.innerHTML =
+          '<div><span class="cid">' + p.contact_id + '</span>' +
+          '<span class="risk ' + risk + '">' + risk + '</span> · ' + (p.cls || '') + ' · frame ' + (p.frame || '—') + '</div>' +
+          '<div class="meta">' + labelState(p.current_lifecycle) + ' <span class="arrow">→</span> ' + labelState(p.proposed_state) +
+          '<br>' + (p.reason || '') + '</div>';
+        row.appendChild(cb);
+        row.appendChild(body);
+        box.appendChild(row);
+      });
+      planRoot.appendChild(box);
+    });
+    statusBar.textContent = plan.total + ' proposal' + (plan.total === 1 ? '' : 's') + ' · propose-only';
+  }
+  async function fetchPlan() {
+    var payload = loadPayload();
+    var n = detCount(payload);
+    document.getElementById('sessWarn').style.display = n ? 'none' : '';
+    if (!n) {
+      renderPlan({ empty: true, summary: 'No survey data in browser session.', groups: [], risk_tally: {}, total: 0 });
+      statusBar.textContent = 'No session';
+      return;
+    }
+    statusBar.textContent = 'Planning…';
+    try {
+      var res = await fetch('/api/agent/triage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      var data = await res.json().catch(function () { return {}; });
+      if (!res.ok) {
+        planRoot.innerHTML = '<div class="warn">Error: ' + (data.detail || res.status) + '</div>';
+        statusBar.textContent = 'Error';
+        return;
+      }
+      renderPlan(data);
+    } catch (e) {
+      planRoot.innerHTML = '<div class="warn">Network error: ' + e.message + '</div>';
+      statusBar.textContent = 'Error';
+    }
+  }
+  function allProposals(plan) {
+    var out = [];
+    (plan.groups || []).forEach(function (g) {
+      (g.proposals || []).forEach(function (p) { out.push(p); });
+    });
+    return out;
+  }
+  function syncCheckboxes() {
+    planRoot.querySelectorAll('input[type=checkbox]').forEach(function (cb) {
+      cb.checked = !!selected[cb.dataset.id];
+    });
+  }
+  document.getElementById('btnRefresh').onclick = fetchPlan;
+  document.getElementById('btnSelectAll').onclick = function () {
+    allProposals(currentPlan || {}).forEach(function (p) { setSelected(p.contact_id, true); });
+    syncCheckboxes();
+  };
+  document.getElementById('btnSelectHigh').onclick = function () {
+    clearSelection();
+    allProposals(currentPlan || {}).forEach(function (p) {
+      if (p.class_risk === 'Critical' || p.class_risk === 'High') setSelected(p.contact_id, true);
+    });
+    syncCheckboxes();
+  };
+  btnApprove.onclick = function () {
+    var toApply = allProposals(currentPlan || {}).filter(function (p) { return selected[p.contact_id]; });
+    if (!toApply.length) return;
+    btnApprove.disabled = true;
+    var n = SeabedLifecycle.applyMany(toApply);
+    statusBar.textContent = 'Applied ' + n + ' transition' + (n === 1 ? '' : 's') + ' — re-planning…';
+    fetchPlan();
+  };
+  fetchPlan();
+})();
+</script>
+<script src="/assets/nauticai_nav.js"></script>
+</body>
+</html>

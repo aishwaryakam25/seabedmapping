@@ -63,8 +63,9 @@
   body.present .hero{padding:36px 40px;}
   body.present .badge{font-size:28px;padding:18px 36px;}
   body.present .hero-main h1{font-size:32px;}
-  .toast{position:fixed;bottom:24px;right:24px;background:#102434;border:1px solid var(--accent);color:#aee9f0;padding:10px 16px;border-radius:8px;font-size:12px;opacity:0;transition:.2s;z-index:99;}
-  .toast.show{opacity:1;}
+  .narrative{white-space:pre-wrap;line-height:1.65;font-size:13px;color:var(--tx);}
+  .narrative.loading{color:var(--mut);font-style:italic;}
+  .advisory-tag{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-top:8px;}
 </style>
 <link rel="stylesheet" href="/assets/nauticai_theme.css">
 </head>
@@ -93,7 +94,12 @@
     <div class="card"><div class="h2">Priority actions</div><ul class="actions" id="actions"></ul></div>
     <div class="card"><div class="h2">Top risks by class</div><div id="risks"></div></div>
   </div>
-  <p class="foot" id="footNote">Desk-review briefing generated from the active Data Review session. Not a survey-grade clearance — ROV verification per project procedure where indicated.</p>
+  <div class="card" style="margin-top:16px">
+    <div class="h2">AI briefing narrative</div>
+    <div id="agentNarrative" class="narrative loading">Generating briefing…</div>
+    <p class="foot" style="margin-top:12px">Live prose from survey data — does not issue GO/NO-GO or clearance. Final decisions rest with a qualified surveyor.</p>
+  </div>
+  <p class="foot" id="footNote">Desk-review briefing generated from the active Data Review session. GO/NO-GO badge is advisory prototype only — not survey-grade clearance.</p>
 </div>
 <div class="toast" id="toast">Copied to clipboard</div>
 <script src="/assets/seabed_survey_ops.js"></script>
@@ -175,7 +181,8 @@
     document.getElementById('toolbarNote').textContent =
       (m.demo ? 'Demo — ' : '') + (m.project || 'Survey') + ' · ' + payload.total + ' contacts';
     document.getElementById('hero').innerHTML =
-      '<div class="verdict"><div class="badge ' + v.cls + '">' + v.label + '</div><p>' + v.note + '</p></div>' +
+      '<div class="verdict"><div class="badge ' + v.cls + '">' + v.label + '</div>' +
+      '<p class="advisory-tag">Advisory prototype</p><p>' + v.note + '</p></div>' +
       '<div class="hero-main"><h1>Installation site briefing</h1>' +
       '<p class="sub">One-screen executive decision summary for project managers and clients</p>' +
       '<div class="meta-row">' +
@@ -204,6 +211,45 @@
       return '<div class="risk-row"><span>' + cap(c) + ' ×' + byClass[c] + '</span><span class="chip" style="background:' + RISKCOL[rk] + '">' + rk + '</span></div>';
     }).join('') : '<p style="color:var(--mut);font-size:12px">No contacts in session.</p>';
     window._briefingText = briefingText(m, v, readiness, repair, roi, actions);
+    loadAgentNarrative(m, readiness, repair, roi);
+  }
+  async function loadAgentNarrative(meta, readiness, repair, roi) {
+    var el = document.getElementById('agentNarrative');
+    if (!el) return;
+    var frames = JSON.parse(localStorage.getItem('nauticai_review_frames') || '[]');
+    var session = JSON.parse(localStorage.getItem('nauticai_session') || 'null');
+    var surveyInfo = JSON.parse(localStorage.getItem('nauticai_survey_info') || '{}');
+    var lifecycle = SeabedIntelligence.loadLifecycle();
+    if (!frames.length && !(session && session.detections && session.detections.length)) {
+      el.textContent = 'Load frames in Data Review to generate live briefing prose.';
+      el.classList.add('loading');
+      return;
+    }
+    el.textContent = 'Generating briefing…';
+    el.classList.add('loading');
+    try {
+      var res = await fetch('/api/agent/briefing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session: session,
+          frames: frames,
+          survey_info: surveyInfo,
+          lifecycle: lifecycle,
+          roi: roi,
+          remediation: repair && repair.contacts ? repair : null
+        })
+      });
+      var data = await res.json().catch(function () { return {}; });
+      if (!res.ok) {
+        el.textContent = data.detail || 'Briefing unavailable (set ANTHROPIC_API_KEY on the server).';
+      } else {
+        el.textContent = data.narrative || 'No narrative generated.';
+        el.classList.remove('loading');
+      }
+    } catch (e) {
+      el.textContent = 'Briefing unavailable (is the server running?).';
+    }
   }
   document.getElementById('btnCopy').addEventListener('click', function () {
     var t = window._briefingText || '';

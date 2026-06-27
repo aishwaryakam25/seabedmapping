@@ -60,7 +60,13 @@
     </div></div><div class="content">
   <div class="ph">Survey Map</div><div class="psub">Plan view &middot; survey track and detected contacts (illustrative local grid)</div>
   <div class="grid">
-    <div class="card" style="flex:3;min-width:420px;padding:10px"><canvas id="map" width="900" height="560" style="width:100%;border-radius:8px;background:#081320"></canvas></div>
+    <div class="card" style="flex:3;min-width:420px;padding:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:2px 4px 8px">
+        <span class="note" id="sweepStatus">Sweeping survey line&hellip;</span>
+        <button class="btn acc" id="replayBtn" type="button">&#9654; Replay sweep</button>
+      </div>
+      <canvas id="map" width="900" height="560" style="width:100%;border-radius:8px;background:#081320"></canvas>
+    </div>
     <div class="card" style="flex:1;min-width:230px">
       <div class="h2">Layers</div><div id="layers"></div>
       <div class="h2" style="margin-top:18px">Contacts</div><div id="clist" style="max-height:300px;overflow:auto"></div>
@@ -91,24 +97,64 @@
     var pad=60;function MX(vx){return pad+(vx-minX)/Math.max(1,(maxX-minX))*(W-2*pad);}
     function MY(vy){return pad+(vy-minY)/Math.max(1,(maxY-minY))*(H-2*pad);}
     var hidden={};
-    function draw(){
-      x.clearRect(0,0,W,H);
+    var contacts=d.map(function(p){return {cls:p.cls,col:colorFor(p.cls),sx:MX(p.x),sy:MY(p.y),revealT:null};});
+    contacts.sort(function(a,b){return a.sx-b.sx;});
+    var SWEEP_MS=4200, startT=null, raf=null, lastSweepX=W-pad;
+    function now(){return performance.now();}
+    function easeOut(u){return 1-(1-u)*(1-u);}
+    function grid(){
       x.strokeStyle='rgba(120,150,160,.10)';x.lineWidth=1;
       for(var gx=0;gx<=10;gx++){var px=pad+gx/10*(W-2*pad);x.beginPath();x.moveTo(px,pad);x.lineTo(px,H-pad);x.stroke();}
       for(var gy=0;gy<=6;gy++){var py=pad+gy/6*(H-2*pad);x.beginPath();x.moveTo(pad,py);x.lineTo(W-pad,py);x.stroke();}
-      // survey track (per frame, snaking)
-      var frames=s.frames||4;x.strokeStyle='#2bb6c4';x.lineWidth=1.6;x.globalAlpha=.5;
-      x.beginPath();x.moveTo(MX(minX),MY(minY+ (maxY-minY)*0.5));x.lineTo(MX(maxX),MY(minY+(maxY-minY)*0.5));x.stroke();x.globalAlpha=1;
-      // pins
-      d.forEach(function(p){if(hidden[p.cls])return;var cxp=MX(p.x),cyp=MY(p.y);x.fillStyle=colorFor(p.cls);x.strokeStyle='#0a1622';x.lineWidth=1.5;x.beginPath();x.arc(cxp,cyp,5,0,7);x.fill();x.stroke();});
-      // scale bar
-      x.fillStyle='#6f8593';x.font='11px Inter,sans-serif';x.fillText('100 m',pad,H-22);x.strokeStyle='#6f8593';x.beginPath();x.moveTo(pad,H-18);x.lineTo(pad+(W-2*pad)*(100/Math.max(1,(maxX-minX))),H-18);x.stroke();
+      x.strokeStyle='#2bb6c4';x.lineWidth=1.4;x.globalAlpha=.35;
+      var ty=MY(minY+(maxY-minY)*0.5);x.beginPath();x.moveTo(MX(minX),ty);x.lineTo(MX(maxX),ty);x.stroke();x.globalAlpha=1;
+    }
+    function render(sweepX, showSweep, t){
+      x.clearRect(0,0,W,H);grid();
+      if(showSweep){
+        var g=x.createLinearGradient(sweepX-90,0,sweepX,0);
+        g.addColorStop(0,'rgba(43,182,196,0)');g.addColorStop(1,'rgba(43,182,196,.18)');
+        x.fillStyle=g;x.fillRect(sweepX-90,pad,90,H-2*pad);
+        x.save();x.shadowColor='#2bb6c4';x.shadowBlur=16;x.strokeStyle='#6fe6f2';x.lineWidth=2.2;
+        x.beginPath();x.moveTo(sweepX,pad-6);x.lineTo(sweepX,H-pad+6);x.stroke();x.restore();
+      }
+      var count=0;
+      contacts.forEach(function(c){
+        if(c.revealT==null||hidden[c.cls])return;count++;
+        var age=t-c.revealT;var sc=easeOut(Math.min(1,age/320));
+        if(age<650){var rr=5+(age/650)*22;x.globalAlpha=Math.max(0,1-age/650);x.strokeStyle=c.col;x.lineWidth=2;x.beginPath();x.arc(c.sx,c.sy,rr,0,7);x.stroke();x.globalAlpha=1;}
+        x.fillStyle=c.col;x.strokeStyle='#0a1622';x.lineWidth=1.5;x.beginPath();x.arc(c.sx,c.sy,5*sc,0,7);x.fill();x.stroke();
+      });
+      x.textAlign='left';
+      x.fillStyle='#aee9f0';x.font='600 24px "IBM Plex Mono", monospace';x.fillText(String(count),pad,pad-20);
+      x.fillStyle='#6f8593';x.font='12px Inter,sans-serif';
+      x.fillText(' contact'+(count===1?'':'s')+' mapped',pad+(count>=10?32:18),pad-21);
+      x.fillStyle='#6f8593';x.font='11px Inter,sans-serif';x.fillText('100 m',pad,H-22);
+      x.strokeStyle='#6f8593';x.beginPath();x.moveTo(pad,H-18);x.lineTo(pad+(W-2*pad)*(100/Math.max(1,(maxX-minX))),H-18);x.stroke();
+      lastSweepX=sweepX;
+    }
+    function frame(ts){
+      if(startT===null)startT=ts;
+      var prog=Math.min(1,(ts-startT)/SWEEP_MS);
+      var sweepX=pad+prog*(W-2*pad);
+      contacts.forEach(function(c){if(c.revealT==null&&c.sx<=sweepX)c.revealT=ts;});
+      render(sweepX, prog<1, ts);
+      var st=document.getElementById('sweepStatus');
+      if(prog<1){raf=requestAnimationFrame(frame);}
+      else{if(st)st.textContent='Survey sweep complete';setTimeout(function(){render(W-pad,false,now());},680);}
+    }
+    function start(){
+      if(raf)cancelAnimationFrame(raf);
+      contacts.forEach(function(c){c.revealT=null;});startT=null;
+      var st=document.getElementById('sweepStatus');if(st)st.textContent='Sweeping survey line…';
+      raf=requestAnimationFrame(frame);
     }
     var cls={};d.forEach(function(p){cls[p.cls]=1;});
     document.getElementById('layers').innerHTML=Object.keys(cls).sort().map(function(c){
       return '<div class="tog on" data-c="'+c+'"><span><span class="dot" style="background:'+colorFor(c)+';margin-right:8px"></span>'+cap(c)+'</span><span class="sw"><i></i></span></div>';}).join('')||'<div class="note">No contacts.</div>';
-    Array.prototype.slice.call(document.querySelectorAll('#layers .tog')).forEach(function(t){t.addEventListener('click',function(){t.classList.toggle('on');hidden[t.dataset.c]=!t.classList.contains('on');draw();});});
+    Array.prototype.slice.call(document.querySelectorAll('#layers .tog')).forEach(function(t){t.addEventListener('click',function(){t.classList.toggle('on');hidden[t.dataset.c]=!t.classList.contains('on');render(lastSweepX,false,now());});});
     document.getElementById('clist').innerHTML=d.map(function(p,i){return '<div class="bar"><span class="nm" style="width:auto"><span class="dot" style="background:'+colorFor(p.cls)+';margin-right:7px"></span>'+cap(p.cls)+'</span><span style="flex:1;text-align:right;color:var(--mut)" class="mono">'+(p.range?p.range.toFixed(0)+'m':'')+'</span></div>';}).join('')||'<div class="note">No contacts.</div>';
-    draw();
+    var rb=document.getElementById('replayBtn');if(rb)rb.addEventListener('click',start);
+    start();
   })();
 </script><script src="/assets/seabed_survey_ops.js"></script><script src="/assets/nauticai_nav.js"></script></body></html>

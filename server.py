@@ -162,9 +162,10 @@ def reports_redirect():
     return RedirectResponse(url="/defects-report", status_code=302)
 
 
-@app.get("/workflow", response_class=HTMLResponse)
-def workflow_page():
-    return _page("workflow.html")
+@app.get("/workflow")
+def workflow_redirect():
+    # Workflow page removed; send old links to the dashboard overview.
+    return RedirectResponse(url="/dashboard", status_code=302)
 
 
 @app.get("/rov", response_class=HTMLResponse)

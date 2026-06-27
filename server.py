@@ -156,6 +156,12 @@ def briefing_page():
     return _page("briefing.html")
 
 
+@app.get("/reports")
+def reports_redirect():
+    # The standalone Reports page was removed; send old links to the deliverables page.
+    return RedirectResponse(url="/defects-report", status_code=302)
+
+
 @app.get("/workflow", response_class=HTMLResponse)
 def workflow_page():
     return _page("workflow.html")

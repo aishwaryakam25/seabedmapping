@@ -604,7 +604,9 @@
   }
   function visibleDets(){return detsAboveThreshold(dets);}
   function boxLayoutMetrics(){
-    var dw=img.naturalWidth||natW||1,dh=img.naturalHeight||natH||1;
+    // Boxes/shadow are in the DETECTION resolution (natW/natH). The displayed image may be a
+    // compressed thumbnail after a session restore, so scale by natW/natH — not img.naturalWidth.
+    var dw=natW||img.naturalWidth||1,dh=natH||img.naturalHeight||1;
     var ir=img.getBoundingClientRect(),sr=stage.getBoundingClientRect();
     return {ox:ir.left-sr.left,oy:ir.top-sr.top,sx:ir.width/dw,sy:ir.height/dh};
   }

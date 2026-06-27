@@ -112,11 +112,29 @@
     }
     msgsEl.appendChild(div); msgsEl.scrollTop = msgsEl.scrollHeight;
   }
+  function showThinking() {
+    if (emptyEl) emptyEl.style.display = 'none';
+    var div = document.createElement('div'); div.className = 'msg assistant'; div.id = 'thinkingMsg';
+    var body = document.createElement('div'); body.className = 'body';
+    body.style.color = 'var(--mut)';
+    body.textContent = 'NautiCAI Chatbot is thinking… (first reply can take ~10s while the model loads)';
+    div.appendChild(body); msgsEl.appendChild(div); msgsEl.scrollTop = msgsEl.scrollHeight;
+    var dots = 0;
+    div._timer = setInterval(function () {
+      dots = (dots + 1) % 4;
+      body.textContent = 'NautiCAI Chatbot is thinking' + Array(dots + 1).join('.') +
+        '   (first reply can take ~10s while the model loads)';
+    }, 500);
+  }
+  function clearThinking() {
+    var t = document.getElementById('thinkingMsg');
+    if (t) { if (t._timer) clearInterval(t._timer); t.parentNode.removeChild(t); }
+  }
   async function sendMessage(text) {
     text = (text || '').trim(); if (!text) return;
     var payload = refreshPanel();
     appendMsg('user', text); history.push({ role: 'user', content: text });
-    inputEl.value = ''; sendBtn.disabled = true;
+    inputEl.value = ''; sendBtn.disabled = true; showThinking();
     try {
       var res = await fetch('/api/agent/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -124,9 +142,12 @@
           frames: payload.frames, survey_info: payload.survey_info, lifecycle: payload.lifecycle })
       });
       var data = await res.json().catch(function () { return {}; });
+      clearThinking();
       if (!res.ok) {
         var detail = data.detail || res.status;
-        if (String(detail).indexOf('ANTHROPIC_API_KEY') >= 0) {
+        if (String(detail).indexOf('Ollama') >= 0 || String(detail).indexOf('Local model') >= 0) {
+          detail = String(detail) + '  (Open the Ollama app so the local model can run.)';
+        } else if (String(detail).indexOf('ANTHROPIC_API_KEY') >= 0) {
           detail = 'ANTHROPIC_API_KEY not set. Add it to seabed/.env (see .env.example) and restart python server.py';
         } else if (String(detail).indexOf('pip install anthropic') >= 0) {
           detail = 'Missing anthropic package. Run: pip install -r requirements.txt then restart the server.';
@@ -138,7 +159,7 @@
       }
       appendMsg('assistant', data.reply || '', data.tools_used || [], data.proposals || []);
       history.push({ role: 'assistant', content: data.reply || '' });
-    } catch (e) { appendMsg('assistant', 'Network error: ' + e.message, []); }
+    } catch (e) { clearThinking(); appendMsg('assistant', 'Network error: ' + e.message, []); }
     finally { sendBtn.disabled = false; inputEl.focus(); }
   }
   sendBtn.onclick = function () { sendMessage(inputEl.value); };

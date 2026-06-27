@@ -20,6 +20,12 @@ router = APIRouter(prefix="/api/agent", tags=["agent"])
 DEFAULT_MODEL = os.environ.get("AGENT_MODEL", "claude-sonnet-4-6")
 MAX_ITERATIONS = 8
 
+# Free local fallback (Ollama). Used automatically when Claude has no key/credit.
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.environ.get("AGENT_OLLAMA_MODEL", "llama3.2:1b")
+# "auto" tries Claude then falls back to local; "claude" / "local" force one backend.
+AGENT_BACKEND = os.environ.get("AGENT_BACKEND", "auto").lower()
+
 CLASS_RISK_LABEL: dict[str, str] = {
     "wreck": "Critical", "uxo": "Critical", "mine": "Critical",
     "pipeline": "High", "cable": "High", "cable_crossing": "High", "obstruction": "High",
@@ -38,21 +44,20 @@ FIELD_CONF = ("conf", "confidence", "score")
 FIELD_ID = ("contact_id", "contactId", "id")
 FIELD_FRAME = ("frame", "frameIndex", "fi")
 
-SYSTEM_PROMPT = """You are the NautiCAI Data Review Copilot — a knowledgeable assistant for side-scan sonar seabed mapping and survey triage. Your job is to clear the analyst's doubts during a seabed-mapping session.
+SYSTEM_PROMPT = """You are NautiCAI Chatbot — a friendly assistant that helps analysts during side-scan sonar seabed-mapping sessions, answering their questions and clearing their doubts.
 
-You answer TWO kinds of questions:
+You handle two kinds of questions:
+1. Concept / how-to questions — explain from your own knowledge: how side-scan sonar works, how to read an acoustic shadow, the difference between a wreck, UXO, debris or a boulder, what a risk tier or lifecycle state means, what "burial" or "proud on seabed" implies, how to use the Data Review / Triage / Dive Plan screens. Answer these directly, in plain language, and end with a practical takeaway.
+2. Questions about the survey loaded right now — answer from the survey information available to you (counts, highest-risk contacts, a specific contact, follow-up suggestions). Never invent contact IDs, counts, coordinates, confidence values, or status. If something isn't in the data, say it isn't available and suggest loading frames in Data Review.
 
-1. CONCEPTUAL / HOW-TO doubts — answer directly from your own domain knowledge, no tools needed. Examples: how side-scan sonar works; how to read an acoustic shadow; the difference between a wreck, UXO, debris, or a boulder; what a risk tier or lifecycle state means; how to use the Data Review / Triage / Dive Plan screens; what "burial" or "proud on seabed" implies. Be clear and teach the reviewer — short paragraphs or bullet points, plain language, define jargon.
+Voice — follow strictly:
+- Refer to yourself only as "NautiCAI Chatbot", or just "I". NEVER call yourself a "copilot" or an "AI model".
+- Speak in plain, operational language for a survey analyst. NEVER mention internal or technical implementation details: no function or tool names, no model names or versions (in particular never say "YOLO"), no file names, no code, no software jargon about how you work.
+- Be concise and friendly. When discussing specific contacts, cite their IDs and frame numbers.
 
-2. DATA questions about the survey loaded RIGHT NOW — use tools first, then answer. Examples: how many contacts, which are highest-risk, explain a specific contact, recommend follow-up.
-
-Rules:
-- For data/factual questions about contacts, counts, coordinates, or risk in the loaded survey, ALWAYS call a tool first. Never invent contact IDs, coordinates, confidence values, or status.
-- For general seabed-mapping/sonar knowledge, answer directly — do NOT force a tool call, and do NOT refuse just because nothing is loaded.
-- If a data question is asked but the session has no frames/detections, say so and suggest loading frames in Data Review (/review) — but still offer relevant conceptual help.
-- Never issue clearance certificates or claim an area is safe for installation; clearance is always a qualified human's decision.
-- You cannot change records. Use propose_lifecycle_transitions to SUGGEST lifecycle steps (desk_review, rov_scheduled, rov_confirmed) for human approval; never claim you applied them.
-- Be concise, friendly, and operational. When discussing specific contacts, cite their IDs and frame numbers. When teaching a concept, give a usable takeaway.
+Safety:
+- You can suggest a next step for a contact — route it to desk review, escalate it to ROV, or mark it ROV-confirmed — for a person to approve. You cannot change records yourself, and must never claim you applied a change.
+- Never issue a clearance or state that an area is safe for installation; that decision belongs to a qualified surveyor. Mention this only briefly when relevant — do not preface every answer with a disclaimer.
 """
 
 TOOL_DEFINITIONS = [
@@ -396,22 +401,46 @@ class ChatResponse(BaseModel):
     proposals: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class _BackendUnavailable(Exception):
+    """Raised when a chat backend can't serve the request, so we can fall back."""
+
+
+def _has_real_key() -> bool:
+    key = os.environ.get("ANTHROPIC_API_KEY") or ""
+    return bool(key) and not key.rstrip().endswith("...")
+
+
+def _ollama_available() -> bool:
+    import urllib.request
+    try:
+        with urllib.request.urlopen(OLLAMA_URL.rstrip("/") + "/api/tags", timeout=2):
+            return True
+    except Exception:
+        return False
+
+
 @router.get("/health")
 def agent_health():
-    return {"ok": True, "model": DEFAULT_MODEL, "api_key_set": bool(os.environ.get("ANTHROPIC_API_KEY"))}
+    return {
+        "ok": True,
+        "backend": AGENT_BACKEND,
+        "claude_model": DEFAULT_MODEL,
+        "claude_key_set": _has_real_key(),
+        "local_model": OLLAMA_MODEL,
+        "local_available": _ollama_available(),
+    }
 
 
-@router.post("/chat", response_model=ChatResponse)
-def agent_chat(req: ChatRequest):
+def _claude_chat(req: ChatRequest, ctx: dict) -> ChatResponse:
+    """Full Claude tool-use loop. Raises _BackendUnavailable so the caller can fall back."""
     api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY is not set on the server.")
+    if not _has_real_key():
+        raise _BackendUnavailable("no Anthropic API key")
     try:
         import anthropic
     except ImportError as exc:
-        raise HTTPException(status_code=503, detail="pip install anthropic") from exc
+        raise _BackendUnavailable("anthropic package not installed") from exc
 
-    ctx = normalize_session(req.session, req.frames, req.survey_info, lifecycle=req.lifecycle)
     client = anthropic.Anthropic(api_key=api_key)
     messages: list[dict] = []
     proposals: list[dict] = []
@@ -428,7 +457,8 @@ def agent_chat(req: ChatRequest):
                 tools=TOOL_DEFINITIONS, messages=messages,
             )
         except anthropic.APIError as exc:
-            raise HTTPException(status_code=502, detail=f"Anthropic API error: {exc}") from exc
+            # auth, credit, rate-limit, etc. — let the caller fall back to local
+            raise _BackendUnavailable(f"Anthropic API error: {exc}") from exc
 
         if response.stop_reason == "end_turn":
             return ChatResponse(reply=_extract_text(response), tools_used=tools_used, proposals=proposals)
@@ -451,3 +481,87 @@ def agent_chat(req: ChatRequest):
         reply="I reached the maximum reasoning steps. Please try a more specific question.",
         tools_used=tools_used, proposals=proposals,
     )
+
+
+def _survey_digest(ctx: dict) -> str:
+    """Compact, grounded text summary of the live survey for the local model."""
+    summ = tool_survey_summary(ctx)
+    meta = summ["survey"]
+    n = summ["totals"]["detections"]
+    lines = [
+        f"Project: {meta.get('project') or 'n/a'} | Line: {meta.get('survey_line') or 'n/a'} | "
+        f"Frames: {meta.get('frames')} | Detections: {n} | Range scale: {meta.get('range_m')} m"
+    ]
+    if n == 0:
+        lines.append("No detections are loaded in the current session. "
+                     "Suggest the user load frames in Data Review (/review).")
+        return "\n".join(lines)
+    lines.append("Counts by class: " + ", ".join(f"{k}×{v}" for k, v in summ["by_class"].items()))
+    lines.append("Counts by risk tier: " + ", ".join(f"{k}×{v}" for k, v in summ["by_class_risk"].items()))
+    recs = tool_recommend_followup(ctx, {"min_risk": "Medium", "limit": 10})
+    if recs["recommendations"]:
+        lines.append("Highest-priority contacts (for follow-up):")
+        for r in recs["recommendations"]:
+            lines.append(
+                f"  - {r['contact_id']}: {r['cls']} [{r['class_risk']}], frame {r['frame']}, "
+                f"conf {int(float(r['conf']) * 100)}% — {r['recommended_action']}"
+            )
+    return "\n".join(lines)
+
+
+def _ollama_chat(req: ChatRequest, ctx: dict) -> ChatResponse:
+    """Free local fallback via Ollama. Grounds answers with a survey digest (no tool-calling)."""
+    import urllib.request
+
+    system = (
+        SYSTEM_PROMPT
+        + "\n\nUse ONLY the survey information below to answer questions about the loaded survey; "
+        "if something isn't in it, say it isn't available. Do not invent contact IDs, counts, or "
+        "coordinates. Keep answers SHORT and direct — at most 4 sentences or 5 short bullet points. "
+        "Lead with the answer, no preamble. Remember the Voice rules: plain language only, never "
+        "mention tools, model names, or how you work.\n\n"
+        "--- Survey information ---\n" + _survey_digest(ctx)
+    )
+    messages = [{"role": "system", "content": system}]
+    for item in req.history[-6:]:
+        if item.role in ("user", "assistant"):
+            messages.append({"role": item.role, "content": item.content})
+    messages.append({"role": "user", "content": req.message})
+
+    payload = json.dumps({
+        "model": OLLAMA_MODEL, "messages": messages, "stream": False,
+        "keep_alive": "30m",       # keep the model resident so replies after the first are fast
+        "options": {"num_predict": 200, "num_ctx": 4096},  # cap output length → faster replies
+    }).encode()
+    url = OLLAMA_URL.rstrip("/") + "/api/chat"
+    request = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=180) as resp:
+            out = json.loads(resp.read())
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=(f"Local model (Ollama) unavailable: {exc}. Make sure the Ollama app is running "
+                    f"and the model '{OLLAMA_MODEL}' is installed."),
+        ) from exc
+    reply = ((out.get("message") or {}).get("content") or "").strip() or "No response."
+    return ChatResponse(reply=reply, tools_used=[f"local:{OLLAMA_MODEL}"], proposals=[])
+
+
+@router.post("/chat", response_model=ChatResponse)
+def agent_chat(req: ChatRequest):
+    ctx = normalize_session(req.session, req.frames, req.survey_info, lifecycle=req.lifecycle)
+
+    if AGENT_BACKEND == "local":
+        return _ollama_chat(req, ctx)
+    if AGENT_BACKEND == "claude":
+        try:
+            return _claude_chat(req, ctx)
+        except _BackendUnavailable as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    # auto: prefer Claude when a real key + credit are available, else fall back to local.
+    try:
+        return _claude_chat(req, ctx)
+    except _BackendUnavailable:
+        return _ollama_chat(req, ctx)

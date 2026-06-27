@@ -128,7 +128,7 @@ body.light .bar .tr{background:#e0e8ee;}
     var ctx = buildContext();
     var steps = [
       { key: 'load', n: '01', title: 'Load survey imagery', desc: 'Import side-scan frames and survey metadata in Data Review.', href: CFG.nav.review, btn: 'Open Data Review', meta: ctx.frames + ' frame(s) in session' },
-      { key: 'detect', n: '02', title: 'Run AI detection', desc: 'YOLO sonar model scores contacts per frame. Tune confidence threshold in the sidebar.', href: CFG.nav.review, btn: 'Review detections', meta: ctx.dets + ' detection(s)' },
+      { key: 'detect', n: '02', title: 'Run detection', desc: 'The NautiCAI sonar detector scores contacts per frame. Tune confidence threshold in the sidebar.', href: CFG.nav.review, btn: 'Review detections', meta: ctx.dets + ' detection(s)' },
       { key: 'triage', n: '03', title: 'Risk triage', desc: 'Dashboard and Detections views aggregate class counts and Critical/High contacts.', href: CFG.nav.dashboard, btn: 'Open dashboard', meta: ctx.hi + ' high-risk contact(s)' },
       { key: 'rov', n: '04', title: 'ROV follow-up', desc: 'Flag hazards, schedule ROV dives, capture findings, and export rov_deployment_queue.json.', href: CFG.nav.rov, btn: 'ROV Ops console', meta: ctx.rovOpen + ' open high-risk · ' + (ctx.sc.closed || 0) + ' closed' },
       { key: 'report', n: '05', title: 'Deliverables', desc: 'Generate multi-frame survey PDF with detection overview, twins, risk assessment, ROV plan, and recommendations.', href: CFG.nav.reports, btn: 'Reports', meta: 'Includes ROV queue section when workflow data exists' }

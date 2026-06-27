@@ -55,7 +55,7 @@ body.light .bar .tr{background:#e0e8ee;}
   <div class="navlinks">
     <a href="/workflow" class="on">Workflow</a><a href="/dashboard">Dashboard</a><a href="/map">Survey Map</a>
     <a href="/review">Data Review</a><a href="/detections">Detections</a><a id="navTwin">3D Twin</a>
-    <a href="/rov">ROV Ops</a><a href="/reports">Reports</a><a href="/settings">Settings</a>
+    <a href="/rov">ROV Ops</a><a href="/settings">Settings</a>
   </div>
   <div class="navright">
     <span class="ic" id="themeToggle" title="Toggle light / dark">&#9789;</span>
@@ -131,7 +131,7 @@ body.light .bar .tr{background:#e0e8ee;}
       { key: 'detect', n: '02', title: 'Run detection', desc: 'The NautiCAI sonar detector scores contacts per frame. Tune confidence threshold in the sidebar.', href: CFG.nav.review, btn: 'Review detections', meta: ctx.dets + ' detection(s)' },
       { key: 'triage', n: '03', title: 'Risk triage', desc: 'Dashboard and Detections views aggregate class counts and Critical/High contacts.', href: CFG.nav.dashboard, btn: 'Open dashboard', meta: ctx.hi + ' high-risk contact(s)' },
       { key: 'rov', n: '04', title: 'ROV follow-up', desc: 'Flag hazards, schedule ROV dives, capture findings, and export rov_deployment_queue.json.', href: CFG.nav.rov, btn: 'ROV Ops console', meta: ctx.rovOpen + ' open high-risk · ' + (ctx.sc.closed || 0) + ' closed' },
-      { key: 'report', n: '05', title: 'Deliverables', desc: 'Generate multi-frame survey PDF with detection overview, twins, risk assessment, ROV plan, and recommendations.', href: CFG.nav.reports, btn: 'Reports', meta: 'Includes ROV queue section when workflow data exists' }
+      { key: 'report', n: '05', title: 'Deliverables', desc: 'Generate the survey PDF with detection overview, twins, risk assessment, ROV plan, and recommendations.', href: CFG.nav.reports, btn: 'Defects Report', meta: 'Includes ROV queue section when workflow data exists' }
     ];
     document.getElementById('pipeline').innerHTML = steps.map(function (s) {
       var st = stepState(s.key, ctx);

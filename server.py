@@ -156,11 +156,6 @@ def briefing_page():
     return _page("briefing.html")
 
 
-@app.get("/reports", response_class=HTMLResponse)
-def reports_page():
-    return _page("reports.html")
-
-
 @app.get("/workflow", response_class=HTMLResponse)
 def workflow_page():
     return _page("workflow.html")

@@ -129,8 +129,8 @@
       var dr = document.createElement('a');
       dr.href = '/defects-report';
       dr.textContent = 'Defects Report';
-      var reports = nav.querySelector('a[href="/reports"]');
-      if (reports) nav.insertBefore(dr, reports);
+      var anchor = nav.querySelector('a[href="/settings"]');
+      if (anchor) nav.insertBefore(dr, anchor);
       else nav.appendChild(dr);
     }
     if (!nav.querySelector('a[href="/copilot"]')) {
@@ -161,8 +161,8 @@
       var a = document.createElement('a');
       a.href = '/intelligence';
       a.textContent = 'Intelligence';
-      var reports = nav.querySelector('a[href="/reports"]');
-      if (reports) nav.insertBefore(a, reports);
+      var anchor = nav.querySelector('a[href="/settings"]');
+      if (anchor) nav.insertBefore(a, anchor);
       else nav.appendChild(a);
     }
     if (location.pathname === '/briefing') {

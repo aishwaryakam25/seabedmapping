@@ -17,7 +17,7 @@
       review: '/review',
       detections: '/detections',
       twin: '/twin',
-      reports: '/reports',
+      reports: '/defects-report',
       settings: '/settings'
     },
     fieldMap: {

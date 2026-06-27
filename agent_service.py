@@ -614,3 +614,70 @@ def agent_chat(req: ChatRequest):
         except _BackendUnavailable:
             continue
     return _ollama_chat(req, ctx)
+
+
+# ---------------------------------------------------------------------------
+# Spoken survey briefing — a grounded, deterministic narration the UI reads aloud.
+# Numbers come straight from the survey tools, so it never hallucinates on a demo.
+# ---------------------------------------------------------------------------
+def build_briefing(ctx: dict) -> dict[str, Any]:
+    from agent_triage import build_triage_plan
+
+    summ = tool_survey_summary(ctx)
+    meta = summ["survey"]
+    total = summ["totals"]["detections"]
+    if total == 0:
+        return {
+            "empty": True,
+            "briefing": "No survey is loaded yet. Load side-scan frames in Data Review, "
+                        "and I'll brief you on the contacts.",
+            "highlights": [], "risk_tally": {},
+        }
+
+    risk = summ["by_class_risk"]
+    order = ["Critical", "High", "Medium", "Low"]
+    recs = tool_recommend_followup(ctx, {"min_risk": "Medium", "limit": 5})["recommendations"]
+    height_by_id = {c["id"]: c.get("height_m") for c in ctx["contacts"]}
+
+    frames = meta.get("frames") or 1
+    project = meta.get("project") or "this survey line"
+    parts = [f"Survey briefing for {project}."]
+    parts.append(
+        f"{total} contact{'s' if total != 1 else ''} detected across "
+        f"{frames} frame{'s' if frames != 1 else ''}."
+    )
+    tally = [f"{risk[k]} {k.lower()}" for k in order if risk.get(k)]
+    if tally:
+        parts.append("Risk breakdown: " + ", ".join(tally) + ".")
+
+    if recs:
+        top = recs[0]
+        h = height_by_id.get(top["contact_id"])
+        ht = f", standing about {h} metres proud of the seabed" if h else ""
+        parts.append(
+            f"Top priority is {top['contact_id']}, a {top['cls']} on frame {top['frame']}, "
+            f"{str(top['class_risk']).lower()} significance{ht}."
+        )
+        if len(recs) > 1:
+            others = ", ".join(r["contact_id"] for r in recs[1:4])
+            parts.append(f"Also flagged for follow-up: {others}.")
+
+    triage = build_triage_plan(ctx["contacts"])
+    if not triage.get("empty"):
+        parts.append(triage["summary"])
+    parts.append(
+        "No area is cleared for installation; that decision stays with a qualified surveyor."
+    )
+
+    return {
+        "empty": False,
+        "briefing": " ".join(parts),
+        "highlights": [r["contact_id"] for r in recs],
+        "risk_tally": {k: risk.get(k, 0) for k in order},
+    }
+
+
+@router.post("/briefing")
+def agent_briefing(req: ChatRequest):
+    ctx = normalize_session(req.session, req.frames, req.survey_info, lifecycle=req.lifecycle)
+    return build_briefing(ctx)

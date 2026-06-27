@@ -31,6 +31,33 @@
   .composer textarea{flex:1;min-height:44px;background:#0c1a28;border:1px solid var(--line);border-radius:10px;color:var(--tx);padding:12px;font-family:inherit;}
   .btn{padding:10px 18px;border-radius:9px;border:1px solid var(--accent);background:#1a4a5280;color:#aee9f0;cursor:pointer;}
   .warn{background:#3a2810;border:1px solid #6b4f1a;color:#f0d080;border-radius:8px;padding:10px;font-size:12px;margin-bottom:14px;}
+  .briefbtn{width:100%;margin-bottom:14px;padding:11px 12px;border-radius:10px;border:1px solid var(--accent);
+    background:linear-gradient(135deg,#1a4a52cc,#11303acc);color:#d6f4f8;cursor:pointer;font-size:13px;font-weight:600;
+    display:flex;align-items:center;justify-content:center;gap:8px;transition:transform .1s,box-shadow .2s;}
+  .briefbtn:hover{box-shadow:0 0 14px rgba(43,182,196,.4);transform:translateY(-1px);}
+  .briefbtn .ico{font-size:15px;}
+  .briefbtn.speaking{animation:briefpulse 1.2s ease-in-out infinite;}
+  @keyframes briefpulse{0%,100%{box-shadow:0 0 0 0 rgba(43,182,196,.5);}50%{box-shadow:0 0 0 6px rgba(43,182,196,0);}}
+  .briefing{background:linear-gradient(135deg,#0e2230,#0c1a28);border:1px solid var(--accent);border-radius:14px;
+    padding:16px 18px;max-width:820px;box-shadow:0 0 24px rgba(43,182,196,.12);}
+  .briefing h4{font-size:13px;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px;
+    display:flex;align-items:center;gap:8px;}
+  .briefing .sound{display:inline-flex;gap:2px;align-items:flex-end;height:14px;}
+  .briefing .sound i{width:3px;background:var(--accent);border-radius:2px;animation:eq 1s ease-in-out infinite;}
+  .briefing .sound i:nth-child(2){animation-delay:.15s;} .briefing .sound i:nth-child(3){animation-delay:.3s;}
+  .briefing .sound i:nth-child(4){animation-delay:.45s;}
+  @keyframes eq{0%,100%{height:4px;}50%{height:14px;}}
+  .briefing .btext{line-height:1.6;font-size:13.5px;color:#dbe7ee;}
+  .briefbars{display:flex;gap:6px;margin:12px 0 4px;}
+  .briefbars .seg{flex:1;text-align:center;font-size:11px;border-radius:7px;padding:6px 4px;border:1px solid #16283a;}
+  .briefbars .seg b{display:block;font-size:16px;line-height:1.2;}
+  .briefchips{margin-top:12px;display:flex;flex-wrap:wrap;gap:6px;}
+  .bchip{font-size:11px;font-family:'IBM Plex Mono',monospace;padding:4px 9px;border-radius:999px;
+    border:1px solid var(--accent);color:#aee9f0;background:#102a3a;}
+  .bchip.pulse{animation:chippulse 1.4s ease-in-out infinite;}
+  @keyframes chippulse{0%,100%{box-shadow:0 0 0 0 rgba(43,182,196,.6);}50%{box-shadow:0 0 0 5px rgba(43,182,196,0);}}
+  .briefstop{margin-top:12px;padding:6px 12px;border-radius:7px;border:1px solid #6b4f1a;background:#3a2810;
+    color:#f0d080;cursor:pointer;font-size:12px;}
 </style>
 </head>
 <body>
@@ -45,6 +72,7 @@
     <aside class="sidebar">
       <div class="sess" id="sessPanel"><div id="sessStatus">Reading session…</div><div id="sessCounts">—</div></div>
       <div id="sessWarn" class="warn" style="display:none">No frames loaded. Open <a href="/review" style="color:#f0d080">Data Review</a> first.</div>
+      <button class="briefbtn" id="briefBtn" type="button"><span class="ico">&#128266;</span> Brief me on this survey</button>
       <div id="chips">
         <span class="chip" data-q="Give me a survey summary.">Survey summary</span>
         <span class="chip" data-q="What are the highest-risk contacts still needing review?">High-risk</span>
@@ -165,6 +193,69 @@
   sendBtn.onclick = function () { sendMessage(inputEl.value); };
   inputEl.onkeydown = function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(inputEl.value); } };
   document.getElementById('chips').onclick = function (e) { var c = e.target.closest('.chip'); if (c) sendMessage(c.getAttribute('data-q')); };
+
+  // ---- Spoken survey briefing ----
+  var briefBtn = document.getElementById('briefBtn');
+  var RISKCOL = { Critical: '#e0564f', High: '#d2691e', Medium: '#d9b13b', Low: '#3fae6a' };
+  function stopSpeaking() {
+    try { window.speechSynthesis.cancel(); } catch (e) {}
+    briefBtn.classList.remove('speaking');
+    var c = document.getElementById('briefCard');
+    if (c) c.querySelectorAll('.bchip').forEach(function (x) { x.classList.remove('pulse'); });
+  }
+  function speak(text, onend) {
+    if (!('speechSynthesis' in window)) { if (onend) onend(); return; }
+    window.speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.0; u.pitch = 1.0;
+    u.onend = function () { briefBtn.classList.remove('speaking'); if (onend) onend(); };
+    window.speechSynthesis.speak(u);
+  }
+  function renderBriefing(b) {
+    if (emptyEl) emptyEl.style.display = 'none';
+    stopSpeaking();
+    var old = document.getElementById('briefCard'); if (old) old.parentNode.removeChild(old);
+    var div = document.createElement('div'); div.className = 'msg assistant';
+    var card = document.createElement('div'); card.className = 'briefing'; card.id = 'briefCard';
+    card.innerHTML = '<h4><span class="sound"><i></i><i></i><i></i><i></i></span> Survey Briefing</h4>' +
+      '<div class="btext">' + b.briefing + '</div>';
+    if (b.risk_tally && Object.keys(b.risk_tally).length) {
+      var bars = '<div class="briefbars">';
+      ['Critical', 'High', 'Medium', 'Low'].forEach(function (k) {
+        bars += '<div class="seg" style="border-color:' + RISKCOL[k] + '55"><b style="color:' + RISKCOL[k] + '">' +
+          (b.risk_tally[k] || 0) + '</b>' + k + '</div>';
+      });
+      card.innerHTML += bars + '</div>';
+    }
+    if (b.highlights && b.highlights.length) {
+      var chips = '<div class="briefchips">';
+      b.highlights.forEach(function (id) { chips += '<span class="bchip pulse">' + id + '</span>'; });
+      card.innerHTML += chips + '</div>';
+    }
+    card.innerHTML += '<button class="briefstop" id="briefStop" type="button">&#9209; Stop voice</button>';
+    div.appendChild(card); msgsEl.appendChild(div); msgsEl.scrollTop = msgsEl.scrollHeight;
+    document.getElementById('briefStop').onclick = stopSpeaking;
+  }
+  async function doBriefing() {
+    var payload = refreshPanel();
+    briefBtn.disabled = true;
+    try {
+      var res = await fetch('/api/agent/briefing', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: 'briefing', session: payload.session, frames: payload.frames,
+          survey_info: payload.survey_info, lifecycle: payload.lifecycle })
+      });
+      var b = await res.json();
+      renderBriefing(b);
+      briefBtn.classList.add('speaking');
+      speak(b.briefing);
+    } catch (e) {
+      appendMsg('assistant', 'Could not build the briefing: ' + e.message, []);
+    } finally { briefBtn.disabled = false; }
+  }
+  briefBtn.onclick = doBriefing;
+  window.addEventListener('beforeunload', stopSpeaking);
+
   refreshPanel(); inputEl.focus();
 })();
 </script>

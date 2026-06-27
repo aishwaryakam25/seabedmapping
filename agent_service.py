@@ -20,10 +20,16 @@ router = APIRouter(prefix="/api/agent", tags=["agent"])
 DEFAULT_MODEL = os.environ.get("AGENT_MODEL", "claude-sonnet-4-6")
 MAX_ITERATIONS = 8
 
-# Free local fallback (Ollama). Used automatically when Claude has no key/credit.
+# Free local fallback (Ollama). Used automatically when no cloud backend is available.
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.environ.get("AGENT_OLLAMA_MODEL", "llama3.2:1b")
-# "auto" tries Claude then falls back to local; "claude" / "local" force one backend.
+
+# Free cloud backend (Groq, OpenAI-compatible). Fast; free API key, no card required.
+GROQ_URL = os.environ.get("GROQ_URL", "https://api.groq.com/openai/v1/chat/completions")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+
+# Backend selection: "auto" (claude → groq → local), or force one of
+# "claude" / "groq" / "local". Each cloud backend falls back to local on failure.
 AGENT_BACKEND = os.environ.get("AGENT_BACKEND", "auto").lower()
 
 CLASS_RISK_LABEL: dict[str, str] = {
@@ -426,6 +432,8 @@ def agent_health():
         "backend": AGENT_BACKEND,
         "claude_model": DEFAULT_MODEL,
         "claude_key_set": _has_real_key(),
+        "groq_model": GROQ_MODEL,
+        "groq_key_set": bool(os.environ.get("GROQ_API_KEY")),
         "local_model": OLLAMA_MODEL,
         "local_available": _ollama_available(),
     }
@@ -509,10 +517,8 @@ def _survey_digest(ctx: dict) -> str:
     return "\n".join(lines)
 
 
-def _ollama_chat(req: ChatRequest, ctx: dict) -> ChatResponse:
-    """Free local fallback via Ollama. Grounds answers with a survey digest (no tool-calling)."""
-    import urllib.request
-
+def _grounded_messages(req: ChatRequest, ctx: dict) -> list[dict]:
+    """Build chat messages for a no-tool backend: persona + survey digest + history + message."""
     system = (
         SYSTEM_PROMPT
         + "\n\nUse ONLY the survey information below to answer questions about the loaded survey; "
@@ -527,7 +533,43 @@ def _ollama_chat(req: ChatRequest, ctx: dict) -> ChatResponse:
         if item.role in ("user", "assistant"):
             messages.append({"role": item.role, "content": item.content})
     messages.append({"role": "user", "content": req.message})
+    return messages
 
+
+def _groq_chat(req: ChatRequest, ctx: dict) -> ChatResponse:
+    """Free, fast cloud backend via Groq (OpenAI-compatible). Falls back if no key/quota."""
+    import urllib.request
+
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        raise _BackendUnavailable("no Groq API key")
+    payload = json.dumps({
+        "model": GROQ_MODEL,
+        "messages": _grounded_messages(req, ctx),
+        "max_tokens": 400,
+        "temperature": 0.4,
+    }).encode()
+    request = urllib.request.Request(
+        GROQ_URL, data=payload,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=60) as resp:
+            out = json.loads(resp.read())
+    except Exception as exc:
+        # bad key, rate limit, network — fall back to local
+        raise _BackendUnavailable(f"Groq error: {exc}") from exc
+    reply = ((out.get("choices") or [{}])[0].get("message") or {}).get("content", "").strip()
+    if not reply:
+        raise _BackendUnavailable("Groq returned no content")
+    return ChatResponse(reply=reply, tools_used=["cloud:groq"], proposals=[])
+
+
+def _ollama_chat(req: ChatRequest, ctx: dict) -> ChatResponse:
+    """Free local fallback via Ollama. Grounds answers with a survey digest (no tool-calling)."""
+    import urllib.request
+
+    messages = _grounded_messages(req, ctx)
     payload = json.dumps({
         "model": OLLAMA_MODEL, "messages": messages, "stream": False,
         "keep_alive": "30m",       # keep the model resident so replies after the first are fast
@@ -559,9 +601,16 @@ def agent_chat(req: ChatRequest):
             return _claude_chat(req, ctx)
         except _BackendUnavailable as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
+    if AGENT_BACKEND == "groq":
+        try:
+            return _groq_chat(req, ctx)
+        except _BackendUnavailable:
+            return _ollama_chat(req, ctx)  # fall back to local
 
-    # auto: prefer Claude when a real key + credit are available, else fall back to local.
-    try:
-        return _claude_chat(req, ctx)
-    except _BackendUnavailable:
-        return _ollama_chat(req, ctx)
+    # auto: Claude (if key+credit) → Groq (if key) → local. First one that works wins.
+    for backend in (_claude_chat, _groq_chat):
+        try:
+            return backend(req, ctx)
+        except _BackendUnavailable:
+            continue
+    return _ollama_chat(req, ctx)

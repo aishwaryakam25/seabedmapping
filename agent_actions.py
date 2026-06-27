@@ -117,6 +117,45 @@ def _anthropic_client():
     return anthropic.Anthropic(api_key=api_key)
 
 
+def _deterministic_briefing_narrative(payload: dict) -> str:
+    """Grounded executive prose built from survey numbers — no LLM, always available."""
+    s = payload.get("survey", {})
+    t = payload.get("totals", {})
+    risk = payload.get("by_class_risk", {})
+    cls = payload.get("by_class", {})
+    proj = s.get("project") or "this survey line"
+    line = s.get("survey_line") or ""
+    frames = t.get("frames", 0)
+    det = t.get("detections", 0)
+    p1 = (f"Desk-review briefing for {proj}{(' — ' + line) if line else ''}. "
+          f"The survey covers {frames} frame{'s' if frames != 1 else ''} with "
+          f"{det} detected contact{'s' if det != 1 else ''}.")
+    if det == 0:
+        return p1 + " No contacts have been detected yet — load frames in Data Review to populate this briefing."
+    crit, high = risk.get("Critical", 0), risk.get("High", 0)
+    med, low = risk.get("Medium", 0), risk.get("Low", 0)
+    hiopen = t.get("high_risk_open", 0)
+    top = sorted(cls.items(), key=lambda kv: -kv[1])[:3]
+    topstr = ", ".join(f"{k} ({v})" for k, v in top) if top else "no classified contacts"
+    p2 = (f"By significance: {crit} critical, {high} high, {med} medium and {low} low. "
+          + (f"{hiopen} high-significance contact{'s' if hiopen != 1 else ''} remain open for review. " if hiopen else "")
+          + f"The most common classes are {topstr}.")
+    bits = []
+    rem = payload.get("remediation_indicative") or {}
+    if rem.get("costLabel"):
+        bits.append(f"indicative remediation around {rem['costLabel']}")
+    if rem.get("timeLabel"):
+        bits.append(f"a repair window of {rem['timeLabel']}")
+    roi = payload.get("roi_indicative") or {}
+    if roi.get("cost_saved_usd"):
+        bits.append(f"approximately ${int(roi['cost_saved_usd']):,} in ROV cost avoided")
+    p3 = ("Operationally, " + ", ".join(bits) + ". ") if bits else ""
+    p3 += ("Recommend escalating critical and high-significance contacts to ROV verification and routing "
+           "the remainder to desk review. This is an advisory desk-review summary and does not constitute "
+           "clearance — final decisions rest with a qualified surveyor.")
+    return "\n\n".join([p1, p2, p3])
+
+
 def generate_briefing_narrative(
     *, session=None, frames=None, survey_info=None, lifecycle=None, roi=None, remediation=None,
 ) -> str:
@@ -130,16 +169,24 @@ def generate_briefing_narrative(
         "by_status": summary["by_status"],
         "roi_indicative": roi or {}, "remediation_indicative": remediation or {},
     }
-    client = _anthropic_client()
-    try:
-        response = client.messages.create(
-            model=DEFAULT_MODEL, max_tokens=2048, system=BRIEFING_SYSTEM,
-            messages=[{"role": "user", "content": "Write briefing prose from this data (no GO/NO-GO):\n\n" + json.dumps(payload, indent=2)}],
-        )
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Anthropic API error: {exc}") from exc
-    parts = [b.text for b in response.content if hasattr(b, "text") and b.text]
-    return "\n\n".join(parts).strip() or "No narrative generated."
+    # Use Claude for polished prose when a real key + credit are available;
+    # otherwise fall back to a grounded deterministic narrative (free, demo-safe).
+    api_key = os.environ.get("ANTHROPIC_API_KEY") or ""
+    if api_key and not api_key.rstrip().endswith("..."):
+        try:
+            import anthropic
+            client = anthropic.Anthropic(api_key=api_key)
+            response = client.messages.create(
+                model=DEFAULT_MODEL, max_tokens=2048, system=BRIEFING_SYSTEM,
+                messages=[{"role": "user", "content": "Write briefing prose from this data (no GO/NO-GO):\n\n" + json.dumps(payload, indent=2)}],
+            )
+            parts = [b.text for b in response.content if hasattr(b, "text") and b.text]
+            txt = "\n\n".join(parts).strip()
+            if txt:
+                return txt
+        except Exception:
+            pass  # fall back to deterministic narrative
+    return _deterministic_briefing_narrative(payload)
 
 
 def generate_survey_executive_narrative(meta, *, frame_count, detection_count, high_risk_count, class_counts, avg_confidence):

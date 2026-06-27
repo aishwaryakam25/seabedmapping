@@ -677,7 +677,10 @@ def build_briefing(ctx: dict) -> dict[str, Any]:
     }
 
 
-@router.post("/briefing")
-def agent_briefing(req: ChatRequest):
+# Note: path is /survey-briefing to avoid colliding with agent_actions' /briefing
+# (which the Briefing page uses for its narrative). This one powers the chatbot's
+# spoken Survey Briefing card.
+@router.post("/survey-briefing")
+def agent_survey_briefing(req: ChatRequest):
     ctx = normalize_session(req.session, req.frames, req.survey_info, lifecycle=req.lifecycle)
     return build_briefing(ctx)

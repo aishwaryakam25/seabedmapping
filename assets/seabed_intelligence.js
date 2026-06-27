@@ -370,8 +370,32 @@
     return rows.join('\n');
   }
 
+  /** Clearance-readiness summary used by the client Briefing page. */
+  function surveyReadiness(detections) {
+    var dets = detections || [];
+    var R = { wreck: 'Critical', uxo: 'Critical', mine: 'Critical', pipeline: 'High', cable: 'High', cable_crossing: 'High', obstruction: 'High', rock: 'Low' };
+    function rk(c) { var k = ('' + c).toLowerCase().replace(/\s+/g, '_'); return R[k] || (k === 'rock' ? 'Low' : 'Medium'); }
+    var total = dets.length, hi = 0, hiOpen = 0, hiResolved = 0;
+    dets.forEach(function (d) {
+      var r = rk(d.cls);
+      if (r === 'Critical' || r === 'High') {
+        hi++;
+        if (d.status === 'Verified' || d.status === 'Rejected') hiResolved++; else hiOpen++;
+      }
+    });
+    if (!total) return { score: 0, color: '#6f8593', tier: 'pending', tier_label: 'Pending analysis', dives_avoided: 0, high_risk_open: 0, recommendation: 'Load and analyse side-scan frames in Data Review to assess clearance readiness.' };
+    var score = Math.round(100 * (total - hiOpen) / total);
+    var color = score >= 80 ? '#3fae6a' : (score >= 50 ? '#d9b13b' : '#e0564f');
+    var tier, tier_label, recommendation;
+    if (hi === 0 || hiOpen === 0) { tier = 'ready'; tier_label = 'Ready for clearance review'; recommendation = 'No open high-significance contacts. Proceed to clearance review with a qualified surveyor.'; }
+    else if (hiResolved > 0) { tier = 'progress'; tier_label = 'Review in progress'; recommendation = 'Resolve the remaining open high-significance contacts before installation.'; }
+    else { tier = 'blocked'; tier_label = 'High-risk verification required'; recommendation = 'Escalate open high-significance contacts to ROV verification before installation.'; }
+    return { score: score, color: color, tier: tier, tier_label: tier_label, dives_avoided: Math.max(0, total - hi), high_risk_open: hiOpen, recommendation: recommendation };
+  }
+
   global.SeabedIntelligence = {
     KEYS: KEYS,
+    surveyReadiness: surveyReadiness,
     LIFECYCLE: LIFECYCLE,
     LIFECYCLE_LABEL: LIFECYCLE_LABEL,
     shadowMetrics: shadowMetrics,

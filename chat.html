@@ -240,7 +240,7 @@
     var payload = refreshPanel();
     briefBtn.disabled = true;
     try {
-      var res = await fetch('/api/agent/briefing', {
+      var res = await fetch('/api/agent/survey-briefing', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: 'briefing', session: payload.session, frames: payload.frames,
           survey_info: payload.survey_info, lifecycle: payload.lifecycle })

@@ -67,6 +67,14 @@
   .mmbtns{position:absolute;top:8px;right:8px;display:flex;flex-direction:column;}
   .mmbtns button{width:24px;height:24px;border-radius:5px;border:1px solid var(--line);background:#0d1f2ccc;color:var(--tx);cursor:pointer;margin-bottom:6px;}
   .mmscale{position:absolute;left:10px;bottom:10px;font-size:10px;color:var(--mut);} .mmscale .bar{width:46px;height:2px;background:var(--mut);margin-top:3px;}
+  .alertbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:9px 16px;background:linear-gradient(90deg,#241510,#161009);border-bottom:1px solid #4a2f1a;flex:none;font-size:12px;}
+  .alertbar .albadge{font-size:9.5px;font-weight:700;letter-spacing:.09em;color:#f0b8a8;background:#3a1f16;border:1px solid #5b3320;border-radius:6px;padding:3px 9px;display:inline-flex;align-items:center;gap:5px;}
+  .alertbar .alitem{padding:3px 11px;border-radius:999px;border:1px solid var(--line);}
+  .alertbar .alitem.crit{background:rgba(224,86,79,.16);border-color:rgba(224,86,79,.45);color:#f3b1ab;}
+  .alertbar .alitem.warn{background:rgba(217,177,59,.13);border-color:rgba(217,177,59,.4);color:#f0d080;}
+  .alertbar .alitem.info{background:#10243480;border-color:var(--line);color:#9fb1bd;}
+  .alertbar .aldismiss{margin-left:auto;cursor:pointer;color:var(--mut);font-size:17px;line-height:1;padding:0 4px;}
+  .alertbar .aldismiss:hover{color:#cdd9e1;}
   .vhead{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);flex:none;}
   .vhead .lbl{font-size:11px;letter-spacing:.14em;color:#9fb1bd;font-weight:600;text-transform:uppercase;}
   .vhead .live{margin-left:12px;font-size:11px;color:#3fae6a;display:flex;align-items:center;}
@@ -221,6 +229,7 @@
     </div>
 
     <div class="center">
+      <div id="alertBar" class="alertbar" style="display:none"></div>
       <div class="vhead">
         <span class="lbl">SIDE SCAN SONAR</span><span class="live"><span class="dot" style="background:#3fae6a"></span>Live</span>
         <div class="rt"><span class="fnav" id="fnav" style="display:none"><button id="fprev">&lsaquo;</button><span class="mono" id="fpos">1 / 1</span><button id="fnext">&rsaquo;</button></span><span class="mono">Ping: 1247</span><span class="gear" id="loadBtn" title="Load new frames (replaces current)">&#8682;</span></div>
@@ -694,11 +703,44 @@
       if(d.status==='Verified')card.style.borderLeft='3px solid #3fae6a';
       if(d.status==='Rejected')card.style.opacity='.5';
       var badge=d.status==='Verified'?' <span style="color:#3fae6a">✔</span>':(d.status==='Rejected'?' <span style="color:#e0564f">✖</span>':'');
-      card.innerHTML='<img class="ft" src="'+d.crop+'"><div class="fi"><div class="fn">'+cap(d.cls)+badge+'</div><div class="fm mono">'+detTime(i)+'</div><div class="fr mono">Range: '+rangeOf(d).toFixed(1)+' m</div></div><div class="fc"><span class="dot" style="background:'+col+'"></span>'+Math.round(d.conf*100)+'%</div>';
+      var flag=d.conf<LOW_CONF?' <span title="Low confidence — verify" style="color:#f0d080">&#9888;</span>':'';
+      card.innerHTML='<img class="ft" src="'+d.crop+'"><div class="fi"><div class="fn">'+cap(d.cls)+badge+flag+'</div><div class="fm mono">'+detTime(i)+'</div><div class="fr mono">Range: '+rangeOf(d).toFixed(1)+' m</div></div><div class="fc"><span class="dot" style="background:'+col+'"></span>'+Math.round(d.conf*100)+'%</div>';
       card.addEventListener('click',(function(idx){return function(){select(idx);};})(i));
       feed.appendChild(card);
     });
     renderSideSummary();
+    renderAlerts();
+  }
+  var LOW_CONF=0.65, HISTAKES_CONF=0.75, HOTZONE_MIN=3;
+  function computeAlerts(){
+    var t=getConfThreshold(),all=[];
+    frames.forEach(function(fr,fi){(fr.dets||[]).forEach(function(d){if(d.conf>=t)all.push({d:d,frame:fi+1});});});
+    var lowConf=0,hiUncertain=0,byFrameHi={};
+    all.forEach(function(o){
+      if(o.d.conf<LOW_CONF)lowConf++;
+      var r=riskOfNav(o.d.cls);
+      if(r==='Critical'||r==='High'){
+        if(o.d.conf<HISTAKES_CONF)hiUncertain++;
+        byFrameHi[o.frame]=(byFrameHi[o.frame]||0)+1;
+      }
+    });
+    var hotZones=Object.keys(byFrameHi).filter(function(f){return byFrameHi[f]>=HOTZONE_MIN;})
+      .map(function(f){return {frame:f,n:byFrameHi[f]};});
+    return {lowConf:lowConf,hiUncertain:hiUncertain,hotZones:hotZones,total:all.length};
+  }
+  function renderAlerts(){
+    var bar=$('#alertBar');if(!bar)return;
+    if(bar.dataset.dismissed==='1'){bar.style.display='none';return;}
+    var a=computeAlerts(),items=[];
+    a.hotZones.forEach(function(z){items.push({lvl:'crit',txt:'Hot zone — '+z.n+' high-significance contacts cluster on Frame '+z.frame});});
+    if(a.hiUncertain)items.push({lvl:'warn',txt:a.hiUncertain+' high-significance contact'+(a.hiUncertain>1?'s':'')+' with lower confidence — prioritise verification'});
+    if(a.lowConf)items.push({lvl:'info',txt:a.lowConf+' low-confidence detection'+(a.lowConf>1?'s':'')+' flagged for review'});
+    if(!items.length){bar.style.display='none';return;}
+    bar.style.display='';
+    bar.innerHTML='<span class="albadge">&#9888; AI ALERTS</span>'+
+      items.map(function(it){return '<span class="alitem '+it.lvl+'">'+it.txt+'</span>';}).join('')+
+      '<span class="aldismiss" id="alDismiss" title="Dismiss">&times;</span>';
+    document.getElementById('alDismiss').onclick=function(){bar.dataset.dismissed='1';bar.style.display='none';};
   }
   function renderSideSummary(){
     var el=$('#sideSummary');if(!el)return;
@@ -741,7 +783,7 @@
     sel=i;var d=dets[i];if(!d)return;
     drawBoxes($('#classFilter').value);renderFeed($('#classFilter').value);
     $('#dThumb').src=d.crop;$('#dClass').textContent=cap(d.cls);
-    $('#dConf').textContent=(d.conf*100).toFixed(1)+'%';$('#dConf').style.color=d.conf>=0.85?'#3fae6a':(d.conf>=0.6?'#e2b667':'#e0564f');
+    $('#dConf').textContent=(d.conf*100).toFixed(1)+'%'+(d.conf<LOW_CONF?'  ⚠ verify':'');$('#dConf').style.color=d.conf>=0.85?'#3fae6a':(d.conf>=0.6?'#e2b667':'#e0564f');
     $('#dPos').textContent='E: '+d.east.toFixed(2)+', N: '+d.north.toFixed(2);
     $('#dRange').textContent=rangeOf(d).toFixed(1)+' m';
     $('#dSize').textContent=(d.wnorm*rangeScale).toFixed(1)+' m x '+((d.box[3]-d.box[1])/natH*rangeScale).toFixed(1)+' m';

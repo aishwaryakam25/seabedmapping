@@ -44,6 +44,30 @@
   .statusbar{font-size:11px;color:var(--mut);margin-left:auto;}
   .toast{position:fixed;bottom:24px;right:24px;background:#102434;border:1px solid var(--accent);color:#aee9f0;padding:10px 16px;border-radius:8px;font-size:12px;opacity:0;transition:.2s;z-index:99;}
   .toast.show{opacity:1;}
+  .risk.Medium{background:rgba(111,159,212,.15);color:#a8c8f0;}
+  .risk.Low{background:rgba(111,133,147,.15);color:#9ab0bc;}
+  /* mission overview */
+  .ov{display:grid;grid-template-columns:repeat(auto-fit,minmax(116px,1fr));gap:10px;margin-bottom:18px;}
+  .stat{background:linear-gradient(135deg,#0f2230,#0c1a28);border:1px solid var(--line);border-radius:12px;padding:14px 16px;}
+  .stat .n{font-size:23px;font-weight:700;color:#eaf3f5;line-height:1;}
+  .stat .n.crit{color:var(--crit);} .stat .n.acc{color:var(--accent);}
+  .stat .l{font-size:9.5px;color:var(--mut);letter-spacing:.07em;text-transform:uppercase;margin-top:8px;}
+  /* dive accents + duration */
+  .dive{position:relative;}
+  .dive:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);z-index:1;}
+  .dive.crit:before{background:var(--crit);} .dive.high:before{background:var(--high);} .dive.med:before{background:#6f9fd4;} .dive.low:before{background:#3fae6a;}
+  .dhead{align-items:center;}
+  .dur{margin-left:auto;font-size:11px;color:#aee9f0;background:#10243480;border:1px solid var(--line);border-radius:999px;padding:4px 11px;white-space:nowrap;}
+  .dur b{color:#eaf3f5;}
+  /* educational guide */
+  .guide{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-top:22px;overflow:hidden;}
+  .guide>summary{cursor:pointer;padding:14px 18px;font-weight:600;color:#eaf3f5;font-size:13px;list-style:none;display:flex;align-items:center;gap:9px;}
+  .guide>summary::-webkit-details-marker{display:none;}
+  .guide>summary:after{content:"\25B8";margin-left:auto;color:var(--mut);transition:.15s;}
+  .guide[open]>summary:after{transform:rotate(90deg);}
+  .guide .gc{padding:2px 18px 16px;font-size:12px;line-height:1.6;}
+  .guide h4{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin:14px 0 5px;}
+  .guide p{color:#b8c6d0;margin-bottom:4px;} .guide b{color:#dfe8ee;}
 </style>
 </head>
 <body>
@@ -65,7 +89,23 @@
       <h2 id="planSummary">—</h2>
       <p>Verification-focused dive sequence from <code>rov_scheduled</code> contacts. Not a clearance certificate.</p>
     </div>
+    <div id="planOverview" class="ov" style="display:none"></div>
     <div id="planRoot"></div>
+    <details class="guide" id="guide">
+      <summary>&#128218; About ROV verification dives — how to read this plan</summary>
+      <div class="gc">
+        <h4>What this plan is</h4>
+        <p>A <b>verification dive sequence</b>. The AI flagged the high-significance contacts; a remotely operated vehicle (ROV) physically inspects each one to confirm what it is before any installation work. The AI proposes the plan — the dive crew and a qualified surveyor make the final call.</p>
+        <h4>How the order is decided</h4>
+        <p>Dives are grouped <b>by frame (survey-line order)</b> so the ROV travels efficiently, and within each dive the <b>highest-risk target goes first</b>. Co-located targets on one frame are combined into a single transit to save bottom time.</p>
+        <h4>What the tooling means</h4>
+        <p><b>HD video</b> — close visual identification. <b>Multibeam patch</b> — a 3D acoustic map of the object's extent. <b>Scour profiler</b> — measures seabed erosion around the object. <b>Dimensioning</b> — size and how far it stands proud of the seabed. <b>Pipeline/cable tracker</b> — follows the route and checks burial and free spans.</p>
+        <h4>Burial state</h4>
+        <p><b>Proud</b> — sits up on the seabed (most hazardous to installation). <b>Partially buried</b> — partly in sediment. <b>Buried / flush</b> — level with or under the seabed.</p>
+        <h4>Important</h4>
+        <p>This is <b>verification only — not a clearance certificate</b>. Declaring an area safe for installation is always a qualified surveyor's decision.</p>
+      </div>
+    </details>
   </div>
 </div>
 <div class="toast" id="toast">Copied</div>
@@ -121,18 +161,41 @@
     document.getElementById('planBanner').style.display = plan ? '' : 'none';
     document.getElementById('planSummary').textContent = plan.summary || '—';
     planRoot.innerHTML = '';
+    document.getElementById('planOverview').style.display = 'none';
     if (!plan || plan.empty) {
       planRoot.innerHTML = '<div class="warn">No ROV-scheduled contacts. Escalate high-significance targets in <a href="/triage" style="color:#f0d080">Triage</a>, then return here.</div>';
       document.getElementById('statusBar').textContent = '0 dives';
       return;
     }
-    (plan.dives || []).forEach(function (d) {
+    var dives = plan.dives || [];
+    // ---- mission overview ----
+    var RANK = { Critical: 4, High: 3, Medium: 2, Low: 1 }, RANKN = { 4: 'Critical', 3: 'High', 2: 'Medium', 1: 'Low' };
+    var ACC = { Critical: 'crit', High: 'high', Medium: 'med', Low: 'low' };
+    var totalMin = 0, topRank = 0, framesSet = {};
+    dives.forEach(function (d) {
+      totalMin += 20 + 15 * d.target_count;
+      framesSet[d.frame] = 1;
+      topRank = Math.max(topRank, RANK[d.primary_risk] || 0);
+    });
+    function fmtMin(m) { var h = Math.floor(m / 60), mm = m % 60; return h ? (h + 'h ' + (mm ? mm + 'm' : '').trim()) : (m + ' min'); }
+    var topRisk = RANKN[topRank] || '—';
+    var ov = document.getElementById('planOverview');
+    ov.innerHTML =
+      '<div class="stat"><div class="n acc">' + plan.dive_count + '</div><div class="l">Planned dives</div></div>' +
+      '<div class="stat"><div class="n">' + plan.target_count + '</div><div class="l">Targets</div></div>' +
+      '<div class="stat"><div class="n">' + Object.keys(framesSet).length + '</div><div class="l">Frames</div></div>' +
+      '<div class="stat"><div class="n">~' + fmtMin(totalMin) + '</div><div class="l">Est. bottom time</div></div>' +
+      '<div class="stat"><div class="n ' + (topRank >= 3 ? 'crit' : '') + '">' + topRisk + '</div><div class="l">Top significance</div></div>';
+    ov.style.display = '';
+    dives.forEach(function (d) {
       var card = document.createElement('div');
-      card.className = 'dive';
+      card.className = 'dive ' + (ACC[d.primary_risk] || '');
+      var durMin = 20 + 15 * d.target_count;
       var head = document.createElement('div');
       head.className = 'dhead';
       head.innerHTML = '<div class="dnum">' + d.dive_number + '</div><div><div class="dtitle">Frame ' + d.frame + ' — ' + d.target_count + ' target' + (d.target_count === 1 ? '' : 's') + '</div>' +
-        '<div class="dmeta">' + d.location + '</div></div>';
+        '<div class="dmeta">' + d.location + '</div></div>' +
+        '<div class="dur">&#9201; est. <b>' + fmtMin(durMin) + '</b></div>';
       card.appendChild(head);
       var body = document.createElement('dl');
       body.className = 'dbody';

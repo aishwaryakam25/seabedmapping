@@ -375,9 +375,31 @@
   document.getElementById('loading').style.display='none';
   document.body.setAttribute('data-twin-ready','1');
 
+  // When Auto-rotate is on, glide the orbit focus to the detections cluster
+  // and zoom in to fit it, then orbit around that — a guided tour of the defects.
+  var defaultDist=camera.position.distanceTo(controls.target);
+  var _tmpV=new THREE.Vector3();
+  function focusGoal(){
+    var pts=PTS||[];
+    if(!pts.length)return {tx:0,ty:0,tz:0,dist:defaultDist};
+    var cx=0,cz=0;pts.forEach(function(p){cx+=p.px;cz+=p.pz;});cx/=pts.length;cz/=pts.length;
+    var spread=0;pts.forEach(function(p){var d=Math.hypot(p.px-cx,p.pz-cz);if(d>spread)spread=d;});
+    return {tx:cx,ty:terrainY(cx,cz)+8,tz:cz,dist:Math.max(maxDim*0.22,Math.min(maxDim*0.9,spread*2.4+55))};
+  }
   (function loop(){
     requestAnimationFrame(loop);
-    if(spin){controls.autoRotate=true;controls.autoRotateSpeed=0.8;}else controls.autoRotate=false;
+    if(spin){
+      controls.autoRotate=true;controls.autoRotateSpeed=0.9;
+      var g=focusGoal();
+      controls.target.x+=(g.tx-controls.target.x)*0.04;
+      controls.target.y+=(g.ty-controls.target.y)*0.04;
+      controls.target.z+=(g.tz-controls.target.z)*0.04;
+      var d=_tmpV.copy(camera.position).sub(controls.target);
+      var cur=d.length()||1, want=cur+(g.dist-cur)*0.04;
+      d.multiplyScalar(want/cur);camera.position.copy(controls.target).add(d);
+    } else {
+      controls.autoRotate=false;
+    }
     controls.update();
     renderer.render(scene,camera);
     if(labelRenderer)labelRenderer.render(scene,camera);

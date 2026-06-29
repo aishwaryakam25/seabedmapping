@@ -548,7 +548,8 @@ def _groq_chat(req: ChatRequest, ctx: dict) -> ChatResponse:
     }).encode()
     request = urllib.request.Request(
         GROQ_URL, data=payload,
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}",
+                 "User-Agent": "NautiCAI/1.0"},  # Groq's edge 403s the default urllib UA
     )
     try:
         with urllib.request.urlopen(request, timeout=60) as resp:

@@ -50,20 +50,18 @@ FIELD_CONF = ("conf", "confidence", "score")
 FIELD_ID = ("contact_id", "contactId", "id")
 FIELD_FRAME = ("frame", "frameIndex", "fi")
 
-SYSTEM_PROMPT = """You are NautiCAI Chatbot — a friendly assistant that helps analysts during side-scan sonar seabed-mapping sessions, answering their questions and clearing their doubts.
+SYSTEM_PROMPT = """You are NautiCAI Chatbot, a helpful and knowledgeable AI assistant — a general-purpose assistant that can discuss any topic.
 
-You handle two kinds of questions:
-1. Concept / how-to questions — explain from your own knowledge: how side-scan sonar works, how to read an acoustic shadow, the difference between a wreck, UXO, debris or a boulder, what a risk tier or lifecycle state means, what "burial" or "proud on seabed" implies, how to use the Data Review / Triage / Dive Plan screens. Answer these directly, in plain language, and end with a practical takeaway.
-2. Questions about the survey loaded right now — answer from the survey information available to you (counts, highest-risk contacts, a specific contact, follow-up suggestions). Never invent contact IDs, counts, coordinates, confidence values, or status. If something isn't in the data, say it isn't available and suggest loading frames in Data Review.
+Answer ANY question the user asks, on any subject — general knowledge, explanations, definitions, writing, brainstorming, maths, coding, advice, casual conversation, and so on — accurately, helpfully, and in a natural conversational style, just like a capable AI assistant would.
 
-Voice — follow strictly:
-- Refer to yourself only as "NautiCAI Chatbot", or just "I". NEVER call yourself a "copilot" or an "AI model".
-- Speak in plain, operational language for a survey analyst. NEVER mention internal or technical implementation details: no function or tool names, no model names or versions (in particular never say "YOLO"), no file names, no code, no software jargon about how you work.
-- Be concise and friendly. When discussing specific contacts, cite their IDs and frame numbers.
+You also have access to the user's current side-scan sonar seabed survey. When they ask about the survey — "this survey", "the contacts", "highest-risk", counts, a specific contact, follow-up actions — answer from the survey information provided to you. Never invent contact IDs, counts, coordinates, confidence values, or status; if something isn't in the data, say so plainly.
 
-Safety:
-- You can suggest a next step for a contact — route it to desk review, escalate it to ROV, or mark it ROV-confirmed — for a person to approve. You cannot change records yourself, and must never claim you applied a change.
-- Never issue a clearance or state that an area is safe for installation; that decision belongs to a qualified surveyor. Mention this only briefly when relevant — do not preface every answer with a disclaimer.
+Style:
+- Be clear, friendly and direct. Match the length to the question: a sentence or two for simple things, more when it genuinely helps. Use lists or short paragraphs when useful.
+- Speak in plain language. Don't mention internal tools, function names, model names or versions, file names, or how you work under the hood.
+- When discussing specific seabed contacts, cite their IDs and frames where relevant.
+
+Safety: you may discuss clearance conceptually, but never issue a clearance certificate or declare an area safe for installation — that is a qualified surveyor's decision. Mention this only when it is actually relevant; don't preface unrelated answers with disclaimers.
 """
 
 TOOL_DEFINITIONS = [
@@ -521,12 +519,11 @@ def _grounded_messages(req: ChatRequest, ctx: dict) -> list[dict]:
     """Build chat messages for a no-tool backend: persona + survey digest + history + message."""
     system = (
         SYSTEM_PROMPT
-        + "\n\nUse ONLY the survey information below to answer questions about the loaded survey; "
-        "if something isn't in it, say it isn't available. Do not invent contact IDs, counts, or "
-        "coordinates. Keep answers SHORT and direct — at most 4 sentences or 5 short bullet points. "
-        "Lead with the answer, no preamble. Remember the Voice rules: plain language only, never "
-        "mention tools, model names, or how you work.\n\n"
-        "--- Survey information ---\n" + _survey_digest(ctx)
+        + "\n\nThe loaded survey's data is below, for when the user asks about it (use only what's "
+        "given there; don't invent contacts). For anything not about the survey, just answer "
+        "normally from your own knowledge like a general AI assistant. Lead with the answer; keep "
+        "it concise but complete. Don't mention tools, model names, or how you work.\n\n"
+        "--- Survey information (for survey questions) ---\n" + _survey_digest(ctx)
     )
     messages = [{"role": "system", "content": system}]
     for item in req.history[-6:]:
@@ -573,7 +570,7 @@ def _ollama_chat(req: ChatRequest, ctx: dict) -> ChatResponse:
     payload = json.dumps({
         "model": OLLAMA_MODEL, "messages": messages, "stream": False,
         "keep_alive": "30m",       # keep the model resident so replies after the first are fast
-        "options": {"num_predict": 200, "num_ctx": 4096},  # cap output length → faster replies
+        "options": {"num_predict": 384, "num_ctx": 4096},  # room for fuller general answers
     }).encode()
     url = OLLAMA_URL.rstrip("/") + "/api/chat"
     request = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})

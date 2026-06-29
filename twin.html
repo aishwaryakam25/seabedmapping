@@ -78,7 +78,6 @@
   <div class="tog on" id="tMarkers"><span>Detection markers</span><span class="sw"><i></i></span></div>
   <div class="tog on" id="tLabels"><span>Labels (name + score)</span><span class="sw"><i></i></span></div>
   <div class="tog on" id="tWater"><span>Water surface</span><span class="sw"><i></i></span></div>
-  <div class="tog on" id="tSweep"><span>Sonar sweep</span><span class="sw"><i></i></span></div>
   <div class="tog" id="tSpin"><span>Auto-rotate</span><span class="sw"><i></i></span></div>
   <div class="hint">One 3D twin per sonar frame. Use &larr; &rarr; or the bar below to switch frames. Drag to orbit &middot; scroll to zoom.</div>
 </div>
@@ -286,41 +285,29 @@
   var markerGroup=new THREE.Group();scene.add(markerGroup);
   var sphereGeo=new THREE.SphereGeometry(1.7,16,12);
   var stemGeo=new THREE.CylinderGeometry(0.28,0.28,1,6);
-  var labels=[],labelsOn=true,markersOn=true,heads=[];
-  var RISKN={wreck:'Critical',uxo:'Critical',mine:'Critical',pipeline:'High',cable:'High',cable_crossing:'High',obstruction:'High',boulder:'Medium',anchor:'Medium',debris:'Medium',scour:'Medium',rock:'Low'};
-  function riskOf(c){return RISKN[(''+c).toLowerCase().replace(/\s+/g,'_')]||'Medium';}
-  var RISKH={Critical:36,High:26,Medium:16,Low:9},RISKE={Critical:0.6,High:0.5,Medium:0.4,Low:0.3},RISKS={Critical:1.35,High:1.15,Medium:1.0,Low:0.85};
+  var labels=[],labelsOn=true,markersOn=true;
   function clearMarkers(){
     markerGroup.traverse(function(o){
       if(o.element){o.element.remove();o.element=null;}
     });
     while(markerGroup.children.length) markerGroup.remove(markerGroup.children[0]);
     if(labelRenderer&&labelRenderer.domElement) labelRenderer.domElement.innerHTML='';
-    labels=[];heads=[];
+    labels=[];
   }
   function buildMarkers(pts){
     clearMarkers();
     pts.forEach(function(p){
-    var col=classColor(p.cls);var rk=riskOf(p.cls);var ty=terrainY(p.px,p.pz);var top=ty+RISKH[rk];
-    var stemMat=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:0.5});
+    var col=classColor(p.cls);var ty=terrainY(p.px,p.pz);var top=ty+9;
+    var stemMat=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:0.55});
     var stem=new THREE.Mesh(stemGeo,stemMat);stem.position.set(p.px,(ty+top)/2,p.pz);stem.scale.y=(top-ty);
     markerGroup.add(stem);
-    var hmat=new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:RISKE[rk],roughness:0.5});
-    var head=new THREE.Mesh(sphereGeo,hmat);head.scale.setScalar(RISKS[rk]);
+    var head=new THREE.Mesh(sphereGeo,new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:0.35,roughness:0.5}));
     head.position.set(p.px,top,p.pz);head.userData=p;markerGroup.add(head);
-    heads.push({mat:hmat,base:RISKE[rk],x:p.px,rk:rk});
       if(labelRenderer&&THREE.CSS2DObject){var _l=document.createElement('div');_l.className='tlabel';_l.style.borderColor='#'+('000000'+col.toString(16)).slice(-6);_l.textContent=cap(p.cls)+'  '+Math.round(p.conf*100)+'%';var _lo=new THREE.CSS2DObject(_l);_lo.position.set(0,3.4,0);head.add(_lo);labels.push(_lo);}
   });
     refreshLabels();
   }
   buildMarkers(PTS);
-
-  // ---- sonar sweep beam ----
-  var sweepOn=true, sweepPeriod=6000;
-  var sweepH=(maxH-minH)+120, sweepMidY=(minH+maxH)/2+18;
-  var sweepGeo=new THREE.PlaneGeometry(Ht*1.08,sweepH);sweepGeo.rotateY(Math.PI/2);
-  var sweepMat=new THREE.MeshBasicMaterial({color:0x2bb6c4,transparent:true,opacity:0.14,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending});
-  var sweep=new THREE.Mesh(sweepGeo,sweepMat);sweep.position.set(-Wt/2,sweepMidY,0);scene.add(sweep);
 
   // ---- overlay: legend + stats ----
   function updateLegend(pts){
@@ -382,31 +369,15 @@
   tog('tMarkers',function(on){markersOn=on;markerGroup.visible=on;refreshLabels();});
   tog('tLabels',function(on){labelsOn=on;refreshLabels();});
   tog('tWater',function(on){water.visible=on;});
-  tog('tSweep',function(on){sweepOn=on;if(!on){sweep.visible=false;heads.forEach(function(h){h.mat.emissiveIntensity=h.base;});}});
   var spin=false;tog('tSpin',function(on){spin=on;});
 
   window.addEventListener('resize',function(){camera.aspect=window.innerWidth/window.innerHeight;camera.updateProjectionMatrix();renderer.setSize(window.innerWidth,window.innerHeight);if(labelRenderer)labelRenderer.setSize(window.innerWidth,window.innerHeight);});
   document.getElementById('loading').style.display='none';
   document.body.setAttribute('data-twin-ready','1');
 
-  (function loop(t){
+  (function loop(){
     requestAnimationFrame(loop);
-    t=t||0;
     if(spin){controls.autoRotate=true;controls.autoRotateSpeed=0.8;}else controls.autoRotate=false;
-    if(sweepOn){
-      sweep.visible=true;
-      var phase=(t%sweepPeriod)/sweepPeriod;
-      var sx=-Wt/2+phase*Wt;
-      sweep.position.x=sx;
-      sweep.material.opacity=0.07+0.10*Math.sin(phase*Math.PI);
-      var band=maxDim*0.06;
-      for(var i=0;i<heads.length;i++){
-        var h=heads[i],d=Math.abs(h.x-sx);
-        var ping=d<band?(1-d/band):0;
-        var pulse=(h.rk==='Critical'||h.rk==='High')?0.12*(0.5+0.5*Math.sin(t*0.004)):0;
-        h.mat.emissiveIntensity=h.base+pulse+ping*1.1;
-      }
-    }
     controls.update();
     renderer.render(scene,camera);
     if(labelRenderer)labelRenderer.render(scene,camera);

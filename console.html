@@ -86,9 +86,9 @@
   .fnav span{margin:0 8px;}
   .vhead .gear{width:30px;height:30px;border-radius:7px;border:1px solid var(--line);background:#13283a;display:flex;align-items:center;justify-content:center;cursor:pointer;}
   .ruler{display:flex;justify-content:space-between;padding:7px 18px 6px;font-size:11px;color:var(--mut);border-bottom:1px solid var(--line2);flex:none;}
-  .stagewrap{flex:1;position:relative;min-height:0;background:#070f17;overflow:hidden;display:flex;align-items:center;justify-content:center;}
-  .stage{position:relative;max-width:100%;max-height:100%;line-height:0;}
-  .stage img{max-width:100%;max-height:100%;display:block;filter:brightness(1) contrast(1);-webkit-filter:brightness(1) contrast(1);}
+  .stagewrap{flex:1;position:relative;min-height:0;background:#070f17;overflow:hidden;}
+  .stage{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;line-height:0;}
+  .stage img{max-width:100%;max-height:100%;width:auto;height:auto;display:block;filter:brightness(1) contrast(1);-webkit-filter:brightness(1) contrast(1);}
   .mosaicwrap{flex:1;min-height:0;overflow:auto;background:#070f17;display:none;padding:12px;}
   .mosaicwrap.on{display:block;}
   .mosaicwrap canvas{display:block;max-width:100%;height:auto;border:1px solid var(--line);border-radius:6px;}

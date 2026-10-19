@@ -64,3 +64,12 @@ _*.pdf
 _*.png
 NautiCAI_test_4frame_report.pdf
 benchmark_results.csv
+
+# Documents / reports (not source — keep locally)
+*.pdf
+*.docx
+*.doc
+*.pptx
+
+# Large image dataset (3+ GB)
+seabedimages/

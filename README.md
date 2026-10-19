@@ -8,20 +8,6 @@
   <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=22&duration=3000&pause=800&color=00D4FF&center=true&vCenter=true&width=640&lines=Detect+wrecks%2C+pipelines+and+cables+in+sonar;From+raw+sonar+frames+to+a+3D+digital+twin;AI+agents+for+triage+and+ROV+dive+planning;One-click+PDF+survey+reports" alt="Typing animation"/>
 </a>
 
-<p>
-  <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white"/>
-  <img src="https://img.shields.io/badge/YOLOv8-Ultralytics-00FFFF?style=for-the-badge&logo=yolo&logoColor=black"/>
-  <img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white"/>
-  <img src="https://img.shields.io/badge/OpenCV-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white"/>
-  <img src="https://img.shields.io/badge/Three.js-000000?style=for-the-badge&logo=threedotjs&logoColor=white"/>
-</p>
-
-<p>
-  <img src="https://img.shields.io/github/last-commit/aishwaryakam25/seabedmapping?style=flat-square&color=00d4ff"/>
-  <img src="https://img.shields.io/github/repo-size/aishwaryakam25/seabedmapping?style=flat-square&color=0b3d91"/>
-  <img src="https://img.shields.io/github/stars/aishwaryakam25/seabedmapping?style=flat-square&color=ffd700"/>
-</p>
-
 </div>
 
 ---
